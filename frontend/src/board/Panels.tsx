@@ -7,6 +7,7 @@ const FIELD_LABELS: Record<string, string> = {
   caller_name: "Caller", caller_email: "Caller email", what_happened: "What happened", when: "When",
   who_involved: "Who was involved", amount: "Amount", reference_numbers: "Reference numbers",
   evidence: "Evidence", desired_outcome: "Wants", location: "Location", address: "Address",
+  phone: "Phone", date_of_birth: "Date of birth", item_description: "Item", place_lost: "Lost at",
   bank_name: "Bank", account_last4: "Account ending", company_name: "Company", property_manager: "Property manager",
 };
 
@@ -148,9 +149,42 @@ export function AuthorityFinder({ board }: { board: Board }) {
             {a.form_url && <a href={a.form_url} target="_blank" rel="noreferrer">web form ↗</a>}
             {a.source_url && <a href={a.source_url} target="_blank" rel="noreferrer">source ↗</a>}
           </p>
+          <FormReady authority={a} board={board} />
         </div>
       ))}
     </Panel>
+  );
+}
+
+/** The real form's fields with the caller's answers. Values come live from the
+ *  case file, so a field flips from "still needed" to filled as the caller answers. */
+function FormReady({ authority, board }: { authority: Row; board: Board }) {
+  const fields = board.form_fields.filter((f) => f.authority_id === authority.id).sort((a, b) => a.position - b.position);
+  if (fields.length === 0) return null;
+  const answers = new Map(board.case_fields.map((f) => [f.field, f.value]));
+  const filled = fields.filter((f) => f.maps_to && answers.has(f.maps_to)).length;
+  return (
+    <details className="form-ready">
+      <summary>
+        Form ready · {filled}/{fields.length} filled
+        <span className="badge">{fields[0].source === "form" ? "read from the live form" : "standard fields"}</span>
+      </summary>
+      <dl>
+        {fields.map((f) => {
+          const value = f.maps_to ? answers.get(f.maps_to) : undefined;
+          return (
+            <div key={f.id} className={value ? "filled" : "needed"}>
+              <dt>{f.label}{f.required && " *"}</dt>
+              <dd>{value ?? (f.maps_to ? "still needed" : "not collected by Patrick")}</dd>
+            </div>
+          );
+        })}
+      </dl>
+      <p className="contact">
+        Prepared only, never submitted.
+        {authority.form_url && <a href={authority.form_url} target="_blank" rel="noreferrer">Open the real form ↗</a>}
+      </p>
+    </details>
   );
 }
 

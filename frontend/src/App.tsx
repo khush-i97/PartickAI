@@ -78,12 +78,17 @@ export default function App() {
       <main>
         <section className="call">
           <Avatar speaking={speaking} live={status === "live"} />
-          <button className={`call-btn ${live ? "on" : ""}`} onClick={toggle} disabled={status === "connecting"}>
+          <button
+            className={`call-btn ${live ? "on" : ""}`}
+            // Drop focus so a stray Space or Enter while talking cannot end the call.
+            onClick={(e) => { e.currentTarget.blur(); toggle(); }}
+            disabled={status === "connecting"}
+          >
             {status === "connecting" ? "Connecting…" : live ? "End call" : "Call Patrick"}
           </button>
           <div className="meter" ref={meter} aria-hidden />
           <p className="state">
-            {status === "idle" && "Tap to start. Speak any language."}
+            {status === "idle" && "Tap to start. Speak any language. Calls are recorded for your case file."}
             {status === "connecting" && "Reaching the detective…"}
             {status === "live" && (speaking ? "Patrick is speaking" : "Patrick is listening")}
             {status === "ended" && "Call ended."}

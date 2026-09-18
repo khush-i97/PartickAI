@@ -18,12 +18,13 @@ export type Board = {
   tool_events: Row[];
   authority_searches: Row[];
   authorities: Row[];
+  form_fields: Row[];
   dispatches: Row[];
 };
 
 const EMPTY: Board = {
   cases: [], case_fields: [], transcript_turns: [], inconsistencies: [],
-  tool_events: [], authority_searches: [], authorities: [], dispatches: [],
+  tool_events: [], authority_searches: [], authorities: [], form_fields: [], dispatches: [],
 };
 const TABLES = Object.keys(EMPTY) as (keyof Board)[];
 

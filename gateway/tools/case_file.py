@@ -8,14 +8,15 @@ import insforge
 from redact import redact
 
 ROUTING = yaml.safe_load((Path(__file__).resolve().parents[2] / "routing.yaml").read_text())
-FIELDS = ROUTING["fields"]
+FIELDS = list(ROUTING["fields"])
+GLOSSARY = "; ".join(f"{k} = {v}" for k, v in ROUTING["fields"].items())
 
 UPDATE_CASE_FILE = {
     "type": "function",
     "name": "update_case_file",
     "description": ("Write one fact to the case file the moment the caller states or corrects it. "
                     "Call it for every new fact. Write the value in English, short and factual. "
-                    "If the caller corrects a fact, call it again with the same field."),
+                    "If the caller corrects a fact, call it again with the same field. Fields: " + GLOSSARY),
     "parameters": {"type": "object", "required": ["field", "value"], "properties": {
         "field": {"type": "string", "enum": FIELDS},
         "value": {"type": "string"}}},

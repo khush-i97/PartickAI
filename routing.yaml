@@ -56,20 +56,37 @@ case_types:
         search: "{city} official 311 service request report {issue}"
         needs: [location, address, what_happened, when]
 
-# Facts Patrick can write with update_case_file.
+  lost_property:
+    label: Lost or stolen property
+    signals: the caller lost an item or had it stolen, such as a wallet, phone, bag, passport or bicycle
+    destinations:
+      - role: police_lost_property
+        label: Local police lost or stolen property report
+        search: "{city} police official report lost or stolen property online"
+        needs: [caller_name, phone, item_description, when, address, location]
+      - role: venue_lost_and_found
+        label: Lost and found of the place or transit system where it was lost
+        search: "{place_lost} official lost and found {city}"
+        needs: [caller_name, phone, item_description, when]
+
+# Facts Patrick can write with update_case_file, and what each one means.
 fields:
-  - caller_name
-  - caller_email
-  - what_happened
-  - when
-  - who_involved
-  - amount
-  - reference_numbers
-  - evidence
-  - desired_outcome
-  - location          # city and state or country
-  - address
-  - bank_name
-  - account_last4
-  - company_name
-  - property_manager
+  caller_name: the caller's full name
+  caller_email: the caller's email address
+  phone: the caller's phone number
+  date_of_birth: the caller's date of birth
+  what_happened: one or two sentences on the incident
+  when: date and time of the incident
+  who_involved: other people or parties involved
+  amount: money lost or disputed, with currency
+  reference_numbers: transaction, order, ticket or complaint numbers
+  evidence: proof the caller has, such as screenshots, messages or receipts
+  desired_outcome: what the caller wants to happen
+  location: CITY and state or country only, for example "Phoenix, Arizona"
+  address: street address relevant to the case
+  place_lost: the venue, airport, station, shop or transit line where an item was lost
+  item_description: the lost or stolen item, with identifying details
+  bank_name: the caller's bank
+  account_last4: last four digits of the bank account or card
+  company_name: the company in a billing dispute
+  property_manager: landlord or property management company

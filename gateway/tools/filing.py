@@ -167,7 +167,15 @@ async def send_reports(session, approved: list[dict]):
                 f"Organization: {a['name']} ({a['handles']})\nNeeds: {needs.get(a['role'])}\nReference: {reference}\n"
                 f"Case type: {session.case_type}\nCase file: {session.fields}\nSummary: {session.summary}\n"
                 f"Transcript (English):\n{session.english_transcript()}")
-            body = redact(draft["body_html"]) + (
+            form_rows = await insforge.select("form_fields", authority_id=f"eq.{a['id']}", order="position.asc")
+            form_html = "".join(
+                f"<tr><td>{html.escape(f['label'])}</td><td>{html.escape(session.fields.get(f['maps_to'] or '', '') or 'not provided')}</td></tr>"
+                for f in form_rows)
+            if form_html:
+                form_html = ("<h3>Prepared answers for the organization's form</h3>"
+                             "<p>Not submitted. A person can copy these into the real form.</p>"
+                             f"<table border='1' cellpadding='6' cellspacing='0'>{form_html}</table>")
+            body = redact(draft["body_html"]) + form_html + (
                 f"<hr><p>Reference: {reference}<br>Full transcript, original language with English: "
                 f"<a href='{link}'>{link}</a></p>{session.transcript_html}")
             report_url = await insforge.upload(f"{session.case_id}/report-{a['role']}.html",

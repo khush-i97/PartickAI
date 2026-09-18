@@ -27,9 +27,12 @@ export function Avatar({ speaking, live }: { speaking: boolean; live: boolean })
 
   if (missing) return null;
   return (
+    <>
     <div className={`avatar ${live ? "live" : ""} ${speaking ? "speaking" : ""}`}>
       <video ref={idle} src="/avatar/idle.mp4" muted loop playsInline preload="auto" onError={() => setMissing(true)} />
       <video ref={talking} className="talk" src={TALK[talk]} muted loop playsInline preload="auto" />
     </div>
+    <p className="avatar-note">AI avatar · Higgs Avatar</p>
+    </>
   );
 }

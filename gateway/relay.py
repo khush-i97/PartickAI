@@ -39,6 +39,7 @@ class CallSession:
         self.searched_roles: set[str] = set()
         self.authorities: dict[str, dict] = {}    # role -> authorities row
         self.searching = 0
+        self.asked_for: set[str] = set()         # form fields Patrick was already told to ask about
         self.emergency = False
         self.last_caller_text_at = 0.0
         self.summary = ""
@@ -192,13 +193,13 @@ class CallSession:
     async def scribe(self, speaker: str, item_id: str, text: str):
         """Model Gateway pass over one turn, off the voice path: English
         translation, language tag, and (caller turns) the facts stated."""
-        from tools.case_file import FIELDS
+        from tools.case_file import GLOSSARY
         ask = ("You prepare call transcripts. Translate the text to plain English and name its language "
                "(for mixed speech name both, e.g. 'Hindi and English'). Also give reply_style: how a voice agent "
                "should answer this speaker, naming the BASE language, e.g. 'Hinglish: Hindi as the base with English "
                "words mixed in', 'Spanglish: Spanish as the base with English words', or just 'English'. ")
         if speaker == "caller":
-            ask += (f"Also extract facts the caller stated, using only these keys: {FIELDS}. Short English values. "
+            ask += (f"Also extract facts the caller stated, using only these keys ({GLOSSARY}). Short English values. "
                     f"Known so far: {self.fields}. Put a key in facts only if this turn states it for the first time. "
                     "Put a key in corrections only if the caller explicitly takes back a known value "
                     "('sorry, actually it was...'). If instead this turn simply contradicts something known or said "
@@ -286,6 +287,8 @@ class CallSession:
         self.searching -= 1
         if row:
             self.found.append(row["name"])
+            from tools import forms
+            self.spawn(forms.prepare_form(self, row))
         if self.searching == 0 and self.found:
             names, self.found = ", ".join(self.found), []
             await self.note(f"The background search found these offices: {names}. Mention in one short sentence "
