@@ -1,0 +1,91 @@
+/* Tokens, typography and the atoms shared by every surface. Screen-specific
+   layout lives beside it: call.css today, a landing stylesheet next. */
+:root {
+  --bg: #0d0e10;
+  --panel: #15171a;
+  --line: #24272c;
+  --text: #e8e4da;
+  --dim: #8b8a84;
+  --accent: #e0a526; /* the one accent: desk-lamp amber */
+  --danger: #d9614c;
+  font-family: "Iowan Old Style", "Palatino Linotype", Georgia, serif;
+  color: var(--text);
+  background: var(--bg);
+}
+
+* { box-sizing: border-box; }
+body { margin: 0; min-height: 100vh; background: var(--bg); }
+a { color: var(--accent); }
+
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 16px; }
+.panel h2 {
+  margin: 0 0 12px; font-size: 12px; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase;
+  color: var(--dim); font-family: ui-monospace, Menlo, monospace;
+  display: flex; align-items: center; gap: 8px;
+}
+.panel.alert { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent) inset; }
+.count { color: var(--accent); }
+.scroll { overflow-y: auto; display: flex; flex-direction: column; gap: 12px; }
+.scroll.short { max-height: 220px; }
+.empty { color: var(--dim); font-size: 14px; margin: 0; }
+.error { margin: 0; color: var(--danger); font-size: 13px; font-family: ui-monospace, Menlo, monospace; word-break: break-word; }
+
+.badge {
+  display: inline-block; padding: 1px 6px; border: 1px solid var(--line); border-radius: 4px;
+  font: 10px ui-monospace, Menlo, monospace; letter-spacing: 0.06em; text-transform: uppercase; color: var(--dim);
+}
+.badge.approved { color: var(--accent); border-color: var(--accent); }
+.badge.removed { text-decoration: line-through; }
+
+.status { font: 12px ui-monospace, Menlo, monospace; color: var(--dim); }
+.status.sent, .status.delivered { color: var(--accent); }
+.status.blocked, .status.failed { color: var(--danger); }
+
+.row { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+.reason { margin: 4px 0; font-size: 14px; color: var(--dim); line-height: 1.4; }
+.contact {
+  margin: 4px 0 0; display: flex; flex-wrap: wrap; gap: 4px 12px;
+  font: 12px ui-monospace, Menlo, monospace; color: var(--dim); word-break: break-word;
+}
+.link {
+  background: none; border: 0; padding: 0; margin-top: 6px; color: var(--accent);
+  font: 12px ui-monospace, Menlo, monospace; cursor: pointer; text-decoration: underline;
+}
+
+/* Transcript */
+.turn .who { font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--dim); font-family: ui-monospace, Menlo, monospace; }
+.turn.patrick .who { color: var(--accent); }
+.turn .who em { font-style: normal; text-transform: none; letter-spacing: 0; }
+.turn p { margin: 2px 0 0; font-size: 17px; line-height: 1.45; }
+.turn .english { color: var(--dim); font-size: 14px; font-style: italic; }
+
+/* Case file */
+.case-type { margin: 0 0 12px; color: var(--accent); text-transform: capitalize; font-size: 17px; }
+.case-type span { color: var(--dim); font-size: 13px; }
+.fields { margin: 0; display: flex; flex-direction: column; gap: 10px; }
+.field dt { font: 11px ui-monospace, Menlo, monospace; letter-spacing: 0.1em; text-transform: uppercase; color: var(--dim); }
+.field dd { margin: 2px 0 0; font-size: 15px; line-height: 1.4; }
+.field.fresh { animation: fresh 1.6s ease-out; }
+@keyframes fresh { from { background: color-mix(in srgb, var(--accent) 22%, transparent); } to { background: transparent; } }
+
+/* Live analysis */
+.conflict { margin: 0 0 8px; font-size: 15px; line-height: 1.45; }
+.conflict .tag { font: 10px ui-monospace, Menlo, monospace; letter-spacing: 0.08em; text-transform: uppercase; color: var(--accent); margin-right: 6px; }
+.conflict.resolved { opacity: 0.55; }
+.conflict.question .tag { color: var(--dim); }
+
+/* Tool log */
+.tool-line { font-family: ui-monospace, Menlo, monospace; font-size: 12px; line-height: 1.5; word-break: break-word; }
+.tool-line .at { color: var(--dim); }
+.tool-line .name { color: var(--accent); }
+.tool-line .args { color: var(--text); opacity: 0.8; }
+
+/* The exact email, shown over everything */
+.modal { position: fixed; inset: 0; background: rgba(0, 0, 0, 0.7); display: grid; place-items: center; padding: 16px; z-index: 40; }
+.sheet { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 16px; width: min(760px, 100%); }
+.sheet .subject { margin: 0 0 4px; font-size: 16px; }
+.sheet iframe { width: 100%; height: 60vh; margin-top: 12px; border: 1px solid var(--line); border-radius: 4px; background: #fff; }
+
+@media (prefers-reduced-motion: reduce) {
+  .field.fresh { animation: none; }
+}

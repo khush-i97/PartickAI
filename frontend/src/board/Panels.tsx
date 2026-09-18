@@ -1,4 +1,6 @@
-import { useEffect, useRef, useState } from "react";
+/** The rails either side of Patrick: what was said, and what he pulled out of
+ *  it. Everything about filing lives in FilingDrawer. */
+import { useEffect, useRef } from "react";
 import type { Board, Row } from "../lib/board";
 
 export type LiveTurn = { id: string; speaker: "patrick" | "caller"; text: string };
@@ -11,8 +13,13 @@ const FIELD_LABELS: Record<string, string> = {
   bank_name: "Bank", account_last4: "Account ending", company_name: "Company", property_manager: "Property manager",
 };
 
-const byTime = (a: Row, b: Row) => (a.created_at ?? "").localeCompare(b.created_at ?? "");
-const clock = (iso?: string) => (iso ? new Date(iso).toLocaleTimeString([], { hour12: false }) : "");
+export const byTime = (a: Row, b: Row) => (a.created_at ?? "").localeCompare(b.created_at ?? "");
+export const clock = (iso?: string) => (iso ? new Date(iso).toLocaleTimeString([], { hour12: false }) : "");
+
+export function summarize(args: Record<string, unknown> | null): string {
+  if (!args) return "";
+  return Object.values(args).map((v) => (typeof v === "string" ? v : JSON.stringify(v))).join(" · ");
+}
 
 function Panel(props: { title: string; count?: number; alert?: boolean; className?: string; children: React.ReactNode }) {
   return (
@@ -103,134 +110,6 @@ export function Inconsistencies({ board }: { board: Board }) {
           <span className="tag">Worth probing</span> {i.description}
         </p>
       ))}
-    </Panel>
-  );
-}
-
-export function ToolLog({ board }: { board: Board }) {
-  const events = [...board.tool_events].sort(byTime).reverse();
-  return (
-    <Panel title="Tool calls" count={events.length} className="log">
-      <div className="scroll short">
-        {events.length === 0 && <p className="empty">Patrick's actions appear here as they fire.</p>}
-        {events.map((e) => (
-          <div key={e.id} className={`tool-line ${e.status}`}>
-            <span className="at">{clock(e.created_at)}</span> <span className="name">{e.name}</span>
-            {e.source === "backup" && <span className="badge" title="Filled in by the gateway's backup, not the voice model">backup</span>}{" "}
-            <span className="args">{summarize(e.args)}</span>
-          </div>
-        ))}
-      </div>
-    </Panel>
-  );
-}
-
-function summarize(args: Record<string, unknown> | null): string {
-  if (!args) return "";
-  return Object.values(args).map((v) => (typeof v === "string" ? v : JSON.stringify(v))).join(" · ");
-}
-
-export function AuthorityFinder({ board }: { board: Board }) {
-  const searches = [...board.authority_searches].sort(byTime);
-  const found = [...board.authorities].sort((a, b) => (a.rank ?? 99) - (b.rank ?? 99));
-  return (
-    <Panel title="Authority finder" count={found.length}>
-      {searches.length === 0 && found.length === 0 && (
-        <p className="empty">Once the case type and location are known, Patrick searches for the right offices here.</p>
-      )}
-      {searches.map((s) => (
-        <p key={s.id} className={`search ${s.status}`}>
-          <span className="dot" /> {s.query}
-          {s.status === "failed" && <em> · failed</em>}
-        </p>
-      ))}
-      {found.map((a) => (
-        <div key={a.id} className={`authority ${a.approval}`}>
-          <div className="row">
-            <strong>{a.name}</strong>
-            {a.is_cached && <span className="badge">cached result</span>}
-            {a.approval !== "pending" && <span className={`badge ${a.approval}`}>{a.approval}</span>}
-          </div>
-          {a.reason && <p className="reason">{a.reason}</p>}
-          <p className="contact">
-            {a.email && <span>{a.email}</span>}
-            {a.phone && <span>{a.phone}</span>}
-            {a.form_url && <a href={a.form_url} target="_blank" rel="noreferrer">web form ↗</a>}
-            {a.source_url && <a href={a.source_url} target="_blank" rel="noreferrer">source ↗</a>}
-          </p>
-          <FormReady authority={a} board={board} />
-        </div>
-      ))}
-    </Panel>
-  );
-}
-
-/** The real form's fields with the caller's answers. Values come live from the
- *  case file, so a field flips from "still needed" to filled as the caller answers. */
-function FormReady({ authority, board }: { authority: Row; board: Board }) {
-  const fields = board.form_fields.filter((f) => f.authority_id === authority.id).sort((a, b) => a.position - b.position);
-  if (fields.length === 0) return null;
-  const answers = new Map(board.case_fields.map((f) => [f.field, f.value]));
-  const filled = fields.filter((f) => f.maps_to && answers.has(f.maps_to)).length;
-  return (
-    <details className="form-ready">
-      <summary>
-        Form ready · {filled}/{fields.length} filled
-        <span className="badge">{fields[0].source === "form" ? "read from the live form" : "standard fields"}</span>
-      </summary>
-      <dl>
-        {fields.map((f) => {
-          const value = f.maps_to ? answers.get(f.maps_to) : undefined;
-          return (
-            <div key={f.id} className={value ? "filled" : "needed"}>
-              <dt>{f.label}{f.required && " *"}</dt>
-              <dd>{value ?? (f.maps_to ? "still needed" : "not collected by Patrick")}</dd>
-            </div>
-          );
-        })}
-      </dl>
-      <p className="contact">
-        Prepared only, never submitted.
-        {authority.form_url && <a href={authority.form_url} target="_blank" rel="noreferrer">Open the real form ↗</a>}
-      </p>
-    </details>
-  );
-}
-
-const STATUS_LABEL: Record<string, string> = {
-  drafting: "Drafting…", sent: "Sent to demo inbox", delivered: "Delivered", blocked: "Blocked by safe mode", failed: "Failed",
-};
-
-export function Dispatches({ board }: { board: Board }) {
-  const [open, setOpen] = useState<Row | null>(null);
-  const rows = [...board.dispatches].sort(byTime);
-  return (
-    <Panel title="Dispatch" count={rows.length}>
-      {rows.length === 0 && <p className="empty">Nothing is sent until the caller says yes.</p>}
-      {rows.map((d) => (
-        <div key={d.id} className={`dispatch ${d.status}`}>
-          <div className="row">
-            <strong>{d.intended_name ?? (d.kind === "caller" ? "Caller confirmation" : "Report")}</strong>
-            <span className={`status ${d.status}`}>{STATUS_LABEL[d.status] ?? d.status}</span>
-          </div>
-          <p className="contact">
-            <span>Intended for: {d.intended_recipient ?? d.form_url ?? "unknown"}</span>
-            {d.delivered_to && <span className="badge">Redirected to demo inbox</span>}
-          </p>
-          {d.body_html && <button className="link" onClick={() => setOpen(d)}>View the exact email</button>}
-        </div>
-      ))}
-      {open && (
-        <div className="modal" onClick={() => setOpen(null)}>
-          <div className="sheet" onClick={(e) => e.stopPropagation()}>
-            <p className="subject">{open.subject}</p>
-            <p className="contact">Delivered to: {open.delivered_to}</p>
-            {/* The email body is our own generated HTML; sandboxed so nothing in it can run. */}
-            <iframe title="email" sandbox="" srcDoc={open.body_html} />
-            <button className="link" onClick={() => setOpen(null)}>Close</button>
-          </div>
-        </div>
-      )}
     </Panel>
   );
 }

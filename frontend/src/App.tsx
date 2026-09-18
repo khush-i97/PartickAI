@@ -1,6 +1,7 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Call, type GatewayEvent } from "./audio/call";
-import { AuthorityFinder, CaseFile, Dispatches, Inconsistencies, ToolLog, Transcript } from "./board/Panels";
+import { CaseFile, Inconsistencies, Transcript } from "./board/Panels";
+import { FilingDrawer, drawerSummary } from "./board/FilingDrawer";
 import { Avatar, type AvatarHandle } from "./board/Avatar";
 import { useBoard } from "./lib/board";
 
@@ -12,12 +13,26 @@ export default function App() {
   const [turns, setTurns] = useState<Turn[]>([]);
   // ?case=<id> opens a finished case read only, which is how eval calls are reviewed.
   const [caseId, setCaseId] = useState<string | null>(() => new URLSearchParams(location.search).get("case"));
+  const reviewing = useRef(Boolean(new URLSearchParams(location.search).get("case"))).current;
   const board = useBoard(caseId);
   const [speaking, setSpeaking] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // A review opens with everything already found, so the drawer starts open.
+  const [drawerOpen, setDrawerOpen] = useState(reviewing);
+  const autoOpened = useRef(reviewing);
   const call = useRef<Call | null>(null);
   const meter = useRef<HTMLDivElement>(null);
   const avatar = useRef<AvatarHandle>(null);
+
+  // Open the drawer once, the first time Patrick finds somewhere to file. After
+  // that it is the caller's to open and close: it must not fight them.
+  const foundSomewhere = board.authorities.length > 0;
+  useEffect(() => {
+    if (foundSomewhere && !autoOpened.current) {
+      autoOpened.current = true;
+      setDrawerOpen(true);
+    }
+  }, [foundSomewhere]);
 
   function onEvent(ev: GatewayEvent) {
     if (ev.type === "ready") setStatus("live");
@@ -69,16 +84,25 @@ export default function App() {
   }
 
   const live = status === "live" || status === "connecting";
+  const hasDrawer = drawerSummary(board) !== null || board.tool_events.length > 0;
+  // Keep the rails clear of the drawer's tab, and of the drawer itself when open.
+  const drawerSpace = !hasDrawer ? "16px" : drawerOpen ? "min(44vh, 425px)" : "60px";
 
   return (
-    <div className="app">
-      <header>
+    <div className={`call-screen ${drawerOpen && hasDrawer ? "drawer-open" : ""}`} style={{ ["--drawer-space" as string]: drawerSpace }}>
+      <header className="topbar">
         <h1>Patrick</h1>
         <p className="sub">Voice detective · tell him what happened</p>
+        <span className="spacer" />
+        {reviewing && <span className="reviewing">Reviewing a finished case</span>}
       </header>
 
-      <main>
-        <section className="call">
+      <div className="stage">
+        <div className="rail left">
+          <Transcript live={turns} board={board} />
+        </div>
+
+        <section className="centre">
           <Avatar
             ref={avatar}
             live={status === "live"}
@@ -100,19 +124,15 @@ export default function App() {
             {status === "ended" && "Call ended."}
           </p>
           {error && <p className="error">{error}</p>}
-          <CaseFile board={board} />
-          <Inconsistencies board={board} />
         </section>
 
-        <div className="col">
-          <Transcript live={turns} board={board} />
+        <div className="rail right">
+          <CaseFile board={board} />
+          <Inconsistencies board={board} />
         </div>
-        <div className="col">
-          <AuthorityFinder board={board} />
-          <Dispatches board={board} />
-          <ToolLog board={board} />
-        </div>
-      </main>
+      </div>
+
+      <FilingDrawer board={board} open={drawerOpen} onToggle={() => setDrawerOpen((o) => !o)} />
     </div>
   );
 }

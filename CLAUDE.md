@@ -185,6 +185,15 @@ Tests: `gateway/.venv/bin/python -m pytest gateway -q`
 - **HTTP 431 on :5173.** Too many cookies scoped to `localhost` overflow Node's
   16KB header cap. Run Vite with `NODE_OPTIONS=--max-http-header-size=81920`, or
   clear localhost cookies.
+- **Stuck on "Connecting…" forever.** Same cookie pile, different victim: the
+  `/ws/call` handshake carries it too, and uvicorn's default `websockets`
+  implementation caps a header line at 8KB, so the upgrade is refused and no
+  `ready` event ever arrives. The gateway log shows
+  `431 Request Header Fields Too Large`. Run uvicorn with `--ws wsproto`
+  (`pip install wsproto`), which routes the handshake through h11 and honours
+  `--h11-max-incomplete-event-size 262144`. Dev-only: deliberately **not** in
+  `requirements.txt`, because the real cause is one browser's localhost cookies,
+  not anything about production.
 - **Origin check.** `/ws/call` rejects any origin not in `ALLOWED_ORIGINS`
   (CORS middleware does not cover websockets, so `main.py` checks by hand).
   A deployed frontend must be added there or every call fails at handshake.

@@ -1,0 +1,173 @@
+/* The call screen: Patrick centre stage, transcript left, what he extracted
+   right, and filing in a drawer that only exists once there is something to
+   file. See docs/superpowers/specs/2026-09-18-call-screen-redesign-design.md */
+
+.call-screen {
+  min-height: 100vh;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  /* Room for the drawer's peek tab, so the rails never hide behind it. */
+  padding: 16px 16px var(--drawer-space, 16px);
+  gap: 12px;
+  transition: padding-bottom 220ms ease;
+}
+
+.topbar { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+.topbar h1 { margin: 0; font-size: 20px; letter-spacing: 0.02em; }
+.topbar .sub { margin: 0; color: var(--dim); font: 12px ui-monospace, Menlo, monospace; }
+.topbar .spacer { flex: 1; }
+.topbar .reviewing { color: var(--accent); font: 11px ui-monospace, Menlo, monospace; letter-spacing: 0.08em; text-transform: uppercase; }
+
+.stage {
+  display: grid;
+  grid-template-columns: minmax(260px, 1fr) minmax(0, 1.9fr) minmax(260px, 1fr);
+  gap: 12px;
+  min-height: 0;
+}
+.stage > * { min-height: 0; }
+
+/* Rails scroll inside themselves so the centre never moves. */
+.rail { display: flex; flex-direction: column; gap: 12px; min-height: 0; }
+.rail .panel { display: flex; flex-direction: column; min-height: 0; }
+.rail .panel.transcript { flex: 1; }
+.rail .scroll { flex: 1; }
+.rail.right { overflow-y: auto; }
+
+/* Centre stage */
+.centre {
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px;
+  padding: 24px 16px;
+  border: 1px solid var(--line); border-radius: 10px;
+  background: radial-gradient(circle at 50% 34%, #1b1e23 0%, var(--bg) 72%);
+  min-height: 0;
+}
+.centre .avatar {
+  width: min(42vh, 380px);
+  max-width: 100%;
+  /* Never let the column squash the circle into an ellipse: it sizes itself
+     and the centre gives way around it. */
+  flex: none;
+  transition: width 220ms ease;
+}
+/* The drawer takes real height when open, so Patrick gives some back rather
+   than being cropped by it. */
+.call-screen.drawer-open .centre { gap: 10px; }
+.call-screen.drawer-open .centre .avatar { width: min(17vh, 150px); }
+.call-screen.drawer-open .state { font-size: 14px; }
+.centre .call-btn {
+  width: 240px; height: 58px; border-radius: 29px;
+  border: 2px solid var(--accent); background: transparent; color: var(--accent);
+  font: inherit; font-size: 19px; cursor: pointer;
+  transition: background 160ms ease, color 160ms ease, transform 120ms ease;
+}
+.centre .call-btn:hover { background: color-mix(in srgb, var(--accent) 12%, transparent); }
+.centre .call-btn:active { transform: scale(0.97); }
+.centre .call-btn.on { background: var(--accent); color: var(--bg); }
+.centre .call-btn:disabled { opacity: 0.6; cursor: wait; }
+
+.meter { --level: 0; width: 240px; height: 4px; background: var(--line); border-radius: 2px; overflow: hidden; }
+.meter::after {
+  content: ""; display: block; height: 100%; background: var(--accent);
+  transform-origin: left; transform: scaleX(var(--level)); transition: transform 90ms linear;
+}
+.state { margin: 0; color: var(--dim); font-size: 16px; text-align: center; max-width: 42ch; }
+.avatar-note { margin: 0; font: 11px ui-monospace, Menlo, monospace; color: var(--dim); text-align: center; }
+
+/* The avatar itself keeps its own aspect ratio and speaking border. */
+.avatar { position: relative; aspect-ratio: 1; border-radius: 50%; overflow: hidden;
+  border: 2px solid var(--line); transition: border-color 200ms ease; }
+.avatar.speaking { border-color: var(--accent); }
+.avatar video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; transform: scale(1.18); transform-origin: 50% 12%; }
+.avatar .talk { opacity: 0; transition: opacity 180ms ease; }
+.avatar.speaking .talk { opacity: 1; }
+
+/* ---- Filing drawer ------------------------------------------------------ */
+
+.drawer { position: fixed; left: 0; right: 0; bottom: 0; z-index: 30; pointer-events: none; }
+.drawer > * { pointer-events: auto; }
+
+.drawer-tab {
+  display: flex; align-items: center; gap: 10px;
+  margin: 0 auto; width: min(1100px, calc(100% - 32px));
+  padding: 9px 16px;
+  background: var(--panel); border: 1px solid var(--accent); border-bottom: 0; border-radius: 10px 10px 0 0;
+  color: var(--accent); font: 12px ui-monospace, Menlo, monospace; letter-spacing: 0.04em;
+  cursor: pointer; text-align: left;
+}
+.drawer-tab:hover { background: color-mix(in srgb, var(--accent) 10%, var(--panel)); }
+.drawer-tab .caret { transition: transform 200ms ease; }
+.drawer.open .drawer-tab .caret { transform: rotate(180deg); }
+.drawer-tab .muted { color: var(--dim); }
+
+.drawer-body {
+  margin: 0 auto; width: min(1100px, calc(100% - 32px));
+  max-height: min(40vh, 380px); overflow-y: auto;
+  background: var(--panel); border: 1px solid var(--accent); border-bottom: 0;
+  padding: 16px;
+}
+.drawer:not(.open) .drawer-body { display: none; }
+
+.drawer-tabs { display: flex; gap: 6px; margin-bottom: 14px; }
+.drawer-tabs button {
+  background: none; border: 1px solid var(--line); border-radius: 6px; padding: 5px 12px;
+  color: var(--dim); font: 11px ui-monospace, Menlo, monospace; letter-spacing: 0.1em;
+  text-transform: uppercase; cursor: pointer;
+}
+.drawer-tabs button.on { color: var(--accent); border-color: var(--accent); }
+
+/* Offices sit side by side when there is room: three is the usual count. */
+.offices { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); align-items: start; }
+.office { border: 1px solid var(--line); border-radius: 8px; padding: 12px; background: var(--bg); }
+.office.removed { opacity: 0.45; }
+.office .rank { font: 10px ui-monospace, Menlo, monospace; color: var(--dim); letter-spacing: 0.1em; text-transform: uppercase; }
+.office h3 { margin: 2px 0 0; font-size: 17px; line-height: 1.25; }
+.office .handles { margin: 6px 0 0; font-size: 13px; color: var(--dim); line-height: 1.4; }
+
+/* Contact details as a list, not a crammed line — this is the payoff of the call. */
+.details { margin: 10px 0 0; display: grid; gap: 6px; }
+.details div { display: grid; grid-template-columns: 74px minmax(0, 1fr); gap: 8px; align-items: baseline; }
+.details dt { font: 10px ui-monospace, Menlo, monospace; letter-spacing: 0.1em; text-transform: uppercase; color: var(--dim); }
+.details dd { margin: 0; font: 13px ui-monospace, Menlo, monospace; word-break: break-word; }
+
+.searches { margin: 0 0 12px; display: flex; flex-direction: column; gap: 4px; }
+.search { margin: 0; font: 12px ui-monospace, Menlo, monospace; color: var(--dim); }
+.search .dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--dim); margin-right: 6px; }
+.search.running .dot { background: var(--accent); animation: pulse 1s ease-in-out infinite; }
+@keyframes pulse { 50% { opacity: 0.25; } }
+
+.form-ready { margin-top: 10px; border: 1px solid var(--line); border-radius: 6px; padding: 8px 10px; }
+.form-ready summary { cursor: pointer; font: 12px ui-monospace, Menlo, monospace; color: var(--accent); }
+.form-ready dl { margin: 10px 0 6px; display: grid; gap: 8px; }
+.form-ready dt { font: 11px ui-monospace, Menlo, monospace; color: var(--dim); }
+.form-ready dd { margin: 1px 0 0; font-size: 14px; }
+.form-ready .needed dd { color: var(--danger); font-style: italic; }
+
+.dispatch { border-top: 1px solid var(--line); padding: 10px 0; }
+.dispatch:first-of-type { border-top: 0; }
+.drawer-body h4 {
+  margin: 18px 0 8px; font: 11px ui-monospace, Menlo, monospace; letter-spacing: 0.14em;
+  text-transform: uppercase; color: var(--dim);
+}
+.drawer-body h4:first-child { margin-top: 0; }
+
+@media (prefers-reduced-motion: reduce) {
+  .call-screen, .drawer-tab .caret, .centre .avatar { transition: none; }
+  .search.running .dot { animation: none; }
+}
+
+/* Wide screens pin the screen to the viewport: the rails scroll inside
+   themselves, the centre never moves, and the drawer is the only thing that
+   changes height. Narrow screens stack and scroll the page normally. */
+@media (min-width: 901px) {
+  .call-screen { height: 100dvh; overflow: hidden; }
+}
+
+/* Stacked: avatar first, then the conversation, then what came out of it. */
+@media (max-width: 900px) {
+  .stage { grid-template-columns: 1fr; }
+  .centre { order: -1; }
+  .rail.right { overflow: visible; }
+  .centre .avatar { width: min(52vw, 260px); }
+  .drawer-body { max-height: 74vh; }
+  .drawer-tab, .drawer-body { width: 100%; border-radius: 0; border-left: 0; border-right: 0; }
+}
