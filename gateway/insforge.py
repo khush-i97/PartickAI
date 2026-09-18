@@ -61,3 +61,17 @@ async def llm_json(system: str, user: str, model: str | None = None) -> dict:
               "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}]})
     r.raise_for_status()
     return json.loads(r.json()["choices"][0]["message"]["content"])
+
+
+# ---- storage ----------------------------------------------------------------
+
+BUCKET = "case-files"
+
+
+async def upload(key: str, data: bytes, content_type: str) -> str:
+    """Save a transcript, report or recording. Returns its URL. The bucket is
+    public for the demo; keys contain the case's random id."""
+    r = await _http.put(_url(f"/api/storage/buckets/{BUCKET}/objects/{key}"), headers=_headers(),
+                        files={"file": (key.rsplit("/", 1)[-1], data, content_type)})
+    r.raise_for_status()
+    return r.json()["url"]

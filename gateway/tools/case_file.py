@@ -5,6 +5,7 @@ from pathlib import Path
 import yaml
 
 import insforge
+from redact import redact
 
 ROUTING = yaml.safe_load((Path(__file__).resolve().parents[2] / "routing.yaml").read_text())
 FIELDS = ROUTING["fields"]
@@ -40,6 +41,7 @@ CLASSIFY_CASE = {
 async def update_case_file(session, field: str, value: str):
     if field not in FIELDS:
         return {"error": f"unknown field, use one of {FIELDS}"}
+    value = redact(value)
     session.fields[field] = value
     await insforge.upsert("case_fields", {"case_id": session.case_id, "field": field, "value": value,
                                           "updated_at": datetime.now(timezone.utc).isoformat()}, on_conflict="case_id,field")

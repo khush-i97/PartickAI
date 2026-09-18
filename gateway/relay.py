@@ -12,6 +12,7 @@ import base64
 import json
 import logging
 import os
+import time
 
 import websockets
 from fastapi import WebSocket, WebSocketDisconnect
@@ -38,6 +39,15 @@ class CallSession:
         self.searched_roles: set[str] = set()
         self.authorities: dict[str, dict] = {}    # role -> authorities row
         self.searching = 0
+        self.emergency = False
+        self.last_caller_text_at = 0.0
+        self.summary = ""
+        self.proposed_at_turn = None             # set by propose_filing; file_case refuses without it
+        self.filed = False
+        self.confirmed = False
+        self.dispatches: list[dict] = []
+        self.transcript_link = None
+        self.transcript_html = ""
         self.found: list[str] = []
         self.lookups: set[str] = set()            # account hints already checked
         self.conflicts: set[str] = set()          # inconsistencies already recorded
@@ -163,6 +173,8 @@ class CallSession:
         same item_id as they grow, so only the newest scribe pass survives."""
         if not text.strip():
             return
+        if speaker == "caller":
+            self.last_caller_text_at = time.monotonic()
         self.turns.setdefault(item_id, {"speaker": speaker})["text"] = text
         if old := self.scribes.get(item_id):
             old.cancel()
@@ -206,7 +218,12 @@ class CallSession:
                 await self.on_caller_done()
 
     async def on_caller_done(self):
-        """End detection (milestone 4)."""
+        """End detection. If Rook did not propose on its own, do it for it and
+        hand it the summary to read back."""
+        await asyncio.sleep(3)
+        if self.proposed_at_turn is None and not self.emergency:
+            result = await self.invoke("propose_filing", {}, source="backup")
+            await self.note(f"The caller signalled they are done. Proposal: {json.dumps(result)}")
 
     async def backup(self, facts: dict, corrections: dict):
         """Higgs does not call tools on every turn. After giving Rook a head
