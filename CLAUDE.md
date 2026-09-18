@@ -147,8 +147,8 @@ Notes for whoever takes this:
 ### Good parallel work (not the redesign)
 
 Pick these up to avoid colliding with the UI work:
-- **Deployment.** Not done. The gateway has never been deployed; frontend
-  hosting exists but serves an older build. See Deployment below.
+- **Demo inboxes.** `DEMO_AUTHORITY_INBOX` / `DEMO_CALLER_INBOX` are unset, locally and on
+  InstaCloud, so every dispatch shows *Blocked by safe mode* and no email has been delivered yet.
 - **Evals.** `eval_runs` / `eval_results` tables exist and are empty — no
   harness has been written.
 - **Redaction gaps.** Digits spoken as words ("four five one two") pass through.
@@ -191,19 +191,26 @@ Tests: `gateway/.venv/bin/python -m pytest gateway -q`
 
 ## Deployment
 
-**Status: the gateway is not deployed.** Frontend hosting exists at
-`https://6zdyfp34.insforge.site` but serves an older build.
+**Status: both sides are live.**
 
-Use `npx -y @insforge/cli` for everything; never call `flyctl` directly with
-your own credentials — the Fly account belongs to InsForge.
+- Frontend: https://patrick.insforge.site (InsForge Sites; also `6zdyfp34.insforge.site`).
+- Gateway: InstaCloud compute service `gateway`, always on, WebSocket mode:
+  `https://prod-main-gateway-13fb63-00pa4t2ctjb.compute.instacloud-edge.com`
+  (`/health`, `/ws/call`). It is **not** on InsForge compute or Fly.
 
-1. **Gateway** → `compute deploy . --name <name> --port 8080 --env-file .env`.
-   Source mode needs `flyctl` on PATH (no Docker daemon required); image mode
-   needs a pre-built public image instead.
-2. **`ALLOWED_ORIGINS`** must include the deployed site, or the websocket
-   handshake is refused.
-3. **Frontend** → set `VITE_GATEWAY_URL` to the gateway's `wss://` URL via
-   `deployments env set`, then `deployments deploy frontend`.
+Redeploy:
+
+1. **Gateway** → from the repo root: `insta --agent deploy . --port 8080 --websocket`.
+   The build is remote (root `Dockerfile`); no local Docker needed. Secrets are set
+   with `insta --agent secrets set NAME` (value on stdin), and setting one redeploys.
+   A redeploy drops calls in progress.
+2. **`ALLOWED_ORIGINS`** (an InstaCloud secret) must include the deployed site, or
+   the websocket handshake is refused.
+3. **Frontend** → `npx -y @insforge/cli deployments deploy ./frontend`, then
+   `npx -y @insforge/cli deployments status <id> --sync` until READY. The build is
+   only promoted when its status is synced. Do not pipe the deploy command through
+   `grep` or `tail`; that kills it mid deploy. Build variables are set with
+   `deployments env set` (`VITE_GATEWAY_URL`, `VITE_INSFORGE_URL`, `VITE_INSFORGE_ANON_KEY`).
 
 ## Conventions
 
