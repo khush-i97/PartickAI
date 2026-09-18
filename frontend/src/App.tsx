@@ -113,6 +113,12 @@ export default function App() {
         <p className="sub">Voice detective · tell him what happened</p>
         <span className="spacer" />
         {reviewing && <span className="reviewing">Reviewing a finished case</span>}
+        {/* Tucked into the corner: useful for showing the app, never the point of it. */}
+        {status === "idle" && !reviewing && (
+          <button className="ghost" onClick={runDemo} disabled={demo === "running"}>
+            {demo === "running" ? "building a case…" : demo === "failed" ? "demo unavailable" : "demo"}
+          </button>
+        )}
       </header>
 
       <div className="stage">
@@ -142,14 +148,6 @@ export default function App() {
             {status === "ended" && "Call ended."}
           </p>
           {error && <p className="error">{error}</p>}
-          {status === "idle" && !reviewing && (
-            <div className="actions">
-              <button className="btn" onClick={runDemo} disabled={demo === "running"}>
-                {demo === "running" ? "Building a case…" : "Run a demo without calling"}
-              </button>
-            </div>
-          )}
-          {demo === "failed" && <p className="error">The demo could not reach the gateway.</p>}
         </section>
 
         <div className="rail right">
