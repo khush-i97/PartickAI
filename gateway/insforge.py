@@ -6,7 +6,13 @@ import os
 import httpx
 
 _http = httpx.AsyncClient(timeout=60)
-LLM_MODEL = os.getenv("LLM_MODEL", "google/gemini-2.5-flash")
+# OpenAI if its key is set, else the InsForge Model Gateway (OpenRouter).
+_OPENAI = bool(os.getenv("OPENAI_API_KEY", "").strip())
+LLM_KEY_NAME = "OPENAI_API_KEY" if _OPENAI else "OPENROUTER_API_KEY"
+LLM_MODEL = (os.getenv("LLM_MODEL", "").strip()
+             or ("gpt-5.4-mini" if _OPENAI else "google/gemini-2.5-flash"))
+LLM_BASE_URL = (os.getenv("LLM_BASE_URL", "").strip()
+                or ("https://api.openai.com/v1" if _OPENAI else "https://openrouter.ai/api/v1")).rstrip("/")
 
 
 def _url(path: str) -> str:
@@ -51,11 +57,13 @@ async def select(table: str, **params) -> list[dict]:
 # ---- model gateway ----------------------------------------------------------
 
 async def llm_json(system: str, user: str, model: str | None = None) -> dict:
-    """One JSON answer from the Model Gateway. All text work goes through here
-    so the voice model is never blocked by it."""
+    """One JSON answer from the text model. All text work goes through here
+    so the voice model is never blocked by it. Set OPENAI_API_KEY to talk to
+    OpenAI directly; otherwise the InsForge Model Gateway's OpenRouter key is
+    used. Both speak the same chat completions API."""
     r = await _http.post(
-        "https://openrouter.ai/api/v1/chat/completions",
-        headers={"Authorization": f"Bearer {os.environ['OPENROUTER_API_KEY']}"},
+        LLM_BASE_URL + "/chat/completions",
+        headers={"Authorization": f"Bearer {os.environ[LLM_KEY_NAME]}"},
         json={"model": model or LLM_MODEL, "temperature": 0,
               "response_format": {"type": "json_object"},
               "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}]})
