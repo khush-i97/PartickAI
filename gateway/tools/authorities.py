@@ -76,20 +76,32 @@ async def search_destination(session, dest: dict):
 
 
 async def live_lookup(dest: dict) -> dict | None:
+    # Second try with a plainer query if the first finds nothing official.
+    for query in (dest["query"], f"{dest['label']} official website contact {dest['query'].split()[0]}"):
+        if contact := await search_once(dest, query):
+            return contact
+    return None
+
+
+async def search_once(dest: dict, query: str) -> dict | None:
     async with httpx.AsyncClient(timeout=20) as http:
         r = await http.post("https://api.tavily.com/search",
                             headers={"Authorization": f"Bearer {os.environ['TAVILY_API_KEY']}"},
-                            json={"query": dest["query"], "search_depth": "advanced", "max_results": 6})
+                            json={"query": query, "search_depth": "advanced", "max_results": 8})
         r.raise_for_status()
     results = [{"title": x["title"], "url": x["url"], "content": x["content"][:1200]} for x in r.json()["results"]]
     out = await insforge.llm_json(
         "You pick the one official organization that accepts this kind of report, from web search results. "
-        "Prefer the organization's own site or a government site. Discard blogs, news, directories, law firms "
-        "and anything unofficial. Copy contact details only if they appear in the results; never invent them. "
+        "STRICT SOURCE RULE: source_url must be on the organization's own website (for a company or bank, its own "
+        "domain, e.g. chase.com for Chase) or, for a public agency, that agency's government domain. Pages about "
+        "the organization on any other site, including other government sites, nonprofits, blogs, news, directories "
+        "and law firms, do not count. If no result passes, answer found false. "
+        "Name the specific office or service (e.g. 'SF 311', not the website name). "
+        "Copy contact details only if they appear in the results; never invent them. "
         'Answer as JSON: {"found": true|false, "name": "...", "handles": "what they handle, short", '
         '"reason": "one sentence on why this is the right office", "email": "... or null", '
         '"form_url": "online report form URL or null", "phone": "... or null", "source_url": "the result URL used"}',
-        f"Needed: {dest['label']}\nSearch query: {dest['query']}\nResults: {json.dumps(results)}")
+        f"Needed: {dest['label']}\nSearch query: {query}\nResults: {json.dumps(results)}")
     return out if out.get("found") and out.get("name") and out.get("source_url") else None
 
 
