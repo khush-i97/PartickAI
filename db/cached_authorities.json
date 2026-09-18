@@ -1,0 +1,35 @@
+{
+  "_note": "Fallback for the demo scenario only (scam, HDFC Bank, Mumbai). Captured from a live search on 2026-09-18. Used only when live search fails or times out, and shown on screen as a cached result.",
+  "scam_fraud": {
+    "bank_fraud": {
+      "found": true,
+      "name": "HDFC Bank",
+      "handles": "Unauthorized electronic banking transactions, fraud reporting",
+      "reason": "The HDFC Bank official website provides direct contact numbers and instructions for reporting unauthorized transactions and fraud.",
+      "email": null,
+      "form_url": null,
+      "phone": "1800 1600 / 1800 2600 (accessible across India), 18002586161 (for credit card/debit card/net banking/UPI unauthorized transactions), 022-61606160 (for customers travelling overseas)",
+      "source_url": "https://www.hdfc.bank.in/contact-us/unauthorized-electronic-banking"
+    },
+    "national_fraud_agency": {
+      "found": true,
+      "name": "National Cyber Crime Reporting Portal",
+      "handles": "Online fraud, digital payment scams, identity theft, and other cyber-enabled offenses",
+      "reason": "This is the official government portal for reporting cybercrime and financial fraud in India, as indicated by multiple sources including the official India.gov.in portal.",
+      "email": null,
+      "form_url": "https://www.cybercrime.gov.in",
+      "phone": "1930",
+      "source_url": "https://www.india.gov.in/services/details/report-financial-fraud-through-the-national-cyber-crime-reporting-portal"
+    },
+    "local_police": {
+      "found": true,
+      "name": "Mumbai Police",
+      "handles": "General law enforcement, crime reporting, non-emergency grievances",
+      "reason": "The official Mumbai Police website provides contact information for general grievances and a dedicated page for registering complaints.",
+      "email": null,
+      "form_url": "https://mumbaipolice.maharashtra.gov.in/reg-compliaint.asp",
+      "phone": "100 (Police Control Room), 7738133133, 7738144144 (SMS grievance)",
+      "source_url": "https://mumbaipolice.maharashtra.gov.in/reg-compliaint.asp"
+    }
+  }
+}

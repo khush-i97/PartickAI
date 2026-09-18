@@ -35,6 +35,10 @@ class CallSession:
         self.fields: dict[str, str] = {}          # case file cache
         self.turns: dict[str, dict] = {}          # item_id -> transcript turn, in order
         self.scribes: dict[str, asyncio.Task] = {}
+        self.searched_roles: set[str] = set()
+        self.authorities: dict[str, dict] = {}    # role -> authorities row
+        self.searching = 0
+        self.found: list[str] = []
         self.lookups: set[str] = set()            # account hints already checked
         self.conflicts: set[str] = set()          # inconsistencies already recorded
         self.response_active = False
@@ -176,8 +180,12 @@ class CallSession:
                "words mixed in', 'Spanglish: Spanish as the base with English words', or just 'English'. ")
         if speaker == "caller":
             ask += (f"Also extract facts the caller stated, using only these keys: {FIELDS}. Short English values. "
-                    f"Known so far: {self.fields}. Include a key only if this turn states or corrects it. "
-                    'Answer as JSON: {"english": "...", "language": "...", "reply_style": "...", "facts": {}}')
+                    f"Known so far: {self.fields}. Put a key in facts only if this turn states it for the first time. "
+                    "Put a key in corrections only if the caller explicitly changes a known value. "
+                    "Set caller_done true only if the caller clearly signals they have nothing more to add "
+                    "(for example 'okay, that is all, thank you', in any language). "
+                    'Answer as JSON: {"english": "...", "language": "...", "reply_style": "...", "facts": {}, '
+                    '"corrections": {}, "caller_done": false}')
         else:
             ask += 'Answer as JSON: {"english": "...", "language": "..."}'
         try:
@@ -193,15 +201,26 @@ class CallSession:
         if speaker == "caller":
             if language:
                 await self.set_language(language, out.get("reply_style") or language)
-            await self.backup(out.get("facts") or {})
+            await self.backup(out.get("facts") or {}, out.get("corrections") or {})
+            if out.get("caller_done"):
+                await self.on_caller_done()
 
-    async def backup(self, facts: dict):
+    async def on_caller_done(self):
+        """End detection (milestone 4)."""
+
+    async def backup(self, facts: dict, corrections: dict):
         """Higgs does not call tools on every turn. After giving Rook a head
         start, the gateway fills in whatever it missed, through the same tools."""
         await asyncio.sleep(4)
         for field, value in facts.items():
             if value and field not in self.fields:
                 await self.invoke("update_case_file", {"field": field, "value": str(value)}, source="backup")
+        for field, value in corrections.items():
+            if value and self.fields.get(field) != str(value):
+                await self.invoke("update_case_file", {"field": field, "value": str(value)}, source="backup")
+                # A corrected fact settles the open conflict about it.
+                await insforge.update("inconsistencies", {"case_id": self.case_id, "status": "open"},
+                                      {"status": "resolved"})
         if not self.case_type and "what_happened" in self.fields:
             await self.invoke("classify_case", {}, source="backup")
         last4 = self.fields.get("account_last4")
@@ -213,7 +232,26 @@ class CallSession:
         return "\n".join(f"{t['speaker']}: {t.get('english') or t['text']}" for t in self.turns.values())
 
     async def maybe_find_authorities(self):
-        """Starts the background authority search once case type and location are known (milestone 3)."""
+        """Start a background search for every destination that is ready. Called
+        whenever a fact or the case type changes, so the bank search can start
+        later than the police search if the bank's name arrives later."""
+        from tools import authorities
+        for dest in authorities.ready_destinations(self):
+            self.searched_roles.add(dest["role"])
+            self.spawn(self.search_and_report(dest))
+
+    async def search_and_report(self, dest: dict):
+        from tools import authorities
+        self.searching += 1
+        row = await authorities.search_destination(self, dest)
+        self.searching -= 1
+        if row:
+            self.found.append(row["name"])
+        if self.searching == 0 and self.found:
+            names, self.found = ", ".join(self.found), []
+            await self.note(f"The background search found these offices: {names}. Mention in one short sentence "
+                            "that you have found the right offices and will tell the caller before anything is sent, "
+                            "then continue your questions.")
 
     async def set_language(self, language: str, reply_style: str):
         if language != self.language:
