@@ -5,3 +5,4 @@ httpx
 python-dotenv
 pyyaml
 pytest
+fpdf2

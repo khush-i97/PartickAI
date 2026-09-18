@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Call, type GatewayEvent } from "./audio/call";
 import { FormToFill, Report, Transcript, WhereToFile } from "./board/Panels";
+import { ReadyToSend } from "./board/ReadyToSend";
 import { FilingDrawer, drawerSummary } from "./board/FilingDrawer";
 import { Avatar, type AvatarHandle } from "./board/Avatar";
 import { useBoard } from "./lib/board";
@@ -130,6 +131,7 @@ export default function App() {
         <div className="rail right">
           <WhereToFile board={board} />
           <FormToFill board={board} />
+          <ReadyToSend board={board} caseId={caseId} />
           <Report board={board} />
         </div>
       </div>

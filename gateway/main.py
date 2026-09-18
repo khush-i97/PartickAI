@@ -28,6 +28,17 @@ def health():
     return {"ok": True}
 
 
+@app.get("/api/cases/{case_id}/packet")
+async def packet(case_id: str):
+    """The drafted emails and their files, for the caller to review.
+
+    Read-only: it builds the documents and hands them back. There is no send
+    endpoint on purpose — sending a report to a real police force is a decision
+    someone makes deliberately, not something this route can be talked into."""
+    import outbox  # noqa: PLC0415 — keeps the websocket path's import cost unchanged
+    return await outbox.build_packet(case_id)
+
+
 @app.websocket("/ws/call")
 async def call(ws: WebSocket):
     # CORS middleware does not cover WebSockets, so check the origin by hand.

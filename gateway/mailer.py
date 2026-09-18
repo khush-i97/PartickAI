@@ -74,6 +74,29 @@ async def _deliver(to: str, subject: str, body_html: str) -> None:
     await _post_to_insforge(to, subject, body_html)
 
 
+async def send_with_attachments(*, to: str, subject: str, body_html: str, attachments: list[dict]) -> dict:
+    """AgentMail send, for the packet with the transcript, summary and details
+    as real files rather than links. InsForge's send-raw takes no attachments,
+    which is the whole reason this exists.
+
+    NOT CALLED YET. The review page drafts a packet and shows it; sending is
+    switched off deliberately, and turning it on means a real report reaching a
+    real police force. Whoever enables it: route it through _deliver above so
+    safe mode still gets its say, rather than calling this directly.
+
+    attachments: [{"name": "transcript.html", "content_type": "text/html", "content": b"..."}]
+    """
+    key, inbox = os.environ["AGENTMAIL_API_KEY"], os.environ["AGENTMAIL_INBOX"]
+    files = [{"filename": a["name"], "content_type": a.get("content_type", "text/html"),
+              "content": base64.b64encode(a["content"]).decode()} for a in attachments]
+    async with httpx.AsyncClient(timeout=60) as http:
+        r = await http.post(f"https://api.agentmail.to/v0/inboxes/{inbox}/messages/send",
+                            headers={"Authorization": f"Bearer {key}"},
+                            json={"to": [to], "subject": subject, "html": body_html, "attachments": files})
+        r.raise_for_status()
+        return r.json()
+
+
 async def _post_to_insforge(to: str, subject: str, body_html: str) -> None:
     """InsForge Messaging. Kept tiny so tests can replace it and prove nothing leaves."""
     async with httpx.AsyncClient(timeout=30) as http:
