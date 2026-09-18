@@ -87,12 +87,21 @@ export function CaseFile({ board }: { board: Board }) {
 }
 
 export function Inconsistencies({ board }: { board: Board }) {
-  const open = board.inconsistencies.filter((i) => i.status === "open");
+  const conflicts = board.inconsistencies.filter((i) => i.kind !== "question");
+  const questions = board.inconsistencies.filter((i) => i.kind === "question");
+  const open = conflicts.filter((i) => i.status === "open");
   return (
-    <Panel title="Inconsistencies" count={board.inconsistencies.length} alert={open.length > 0}>
-      {board.inconsistencies.length === 0 && <p className="empty">Nothing conflicts so far.</p>}
-      {board.inconsistencies.map((i) => (
-        <p key={i.id} className="conflict">{i.description}</p>
+    <Panel title="Live analysis" count={board.inconsistencies.length} alert={open.length > 0}>
+      {board.inconsistencies.length === 0 && <p className="empty">Every statement is checked against the rest. Nothing conflicts so far.</p>}
+      {conflicts.map((i) => (
+        <p key={i.id} className={`conflict ${i.status}`}>
+          <span className="tag">{i.status === "open" ? "Conflict" : "Settled"}</span> {i.description}
+        </p>
+      ))}
+      {questions.map((i) => (
+        <p key={i.id} className="conflict question">
+          <span className="tag">Worth probing</span> {i.description}
+        </p>
       ))}
     </Panel>
   );

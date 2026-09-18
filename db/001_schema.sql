@@ -42,6 +42,7 @@ CREATE TABLE IF NOT EXISTS inconsistencies (
   id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   case_id     uuid NOT NULL REFERENCES cases(id) ON DELETE CASCADE,
   description text NOT NULL,
+  kind        text NOT NULL DEFAULT 'conflict', -- conflict (two details disagree) | question (worth probing)
   status      text NOT NULL DEFAULT 'open',  -- open | resolved
   created_at  timestamptz NOT NULL DEFAULT now()
 );

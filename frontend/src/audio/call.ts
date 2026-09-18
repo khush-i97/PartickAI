@@ -25,6 +25,8 @@ export interface CallCallbacks {
   onEvent: (ev: GatewayEvent) => void;
   onLevel?: (rms: number) => void;
   onSpeaking?: (speaking: boolean) => void;
+  /** Loudness of Patrick's voice as it plays, 0 to 1, about 20 times a second. */
+  onVoice?: (rms: number) => void;
   onClose?: () => void;
 }
 
@@ -78,7 +80,11 @@ export class Call {
       outputChannelCount: [1],
     });
     node.port.onmessage = (e) => {
-      const d = e.data as { type: string; played?: number; dropped?: number };
+      const d = e.data as { type: string; played?: number; dropped?: number; rms?: number };
+      if (d.type === "level") {
+        this.cb.onVoice?.(d.rms ?? 0);
+        return;
+      }
       if (d.type === "flushed") {
         // Tell the gateway how much of the reply the caller really heard.
         this.send({

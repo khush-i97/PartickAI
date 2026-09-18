@@ -128,3 +128,6 @@ a { color: var(--accent); }
 .form-ready dd { margin: 1px 0 0; font-size: 14px; }
 .form-ready .needed dd { color: var(--danger); font-style: italic; }
 .avatar-note { margin: -8px 0 0; font: 11px ui-monospace, Menlo, monospace; color: var(--dim); text-align: center; }
+.conflict .tag { font: 10px ui-monospace, Menlo, monospace; letter-spacing: 0.08em; text-transform: uppercase; color: var(--accent); margin-right: 6px; }
+.conflict.resolved { opacity: 0.55; }
+.conflict.question .tag { color: var(--dim); }

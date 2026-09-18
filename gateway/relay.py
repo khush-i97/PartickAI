@@ -156,8 +156,9 @@ class CallSession:
 
             elif t == "conversation.item.input_audio_transcription.completed":
                 text = redact(ev["transcript"])
-                await self.ui({"type": "transcript", "speaker": "caller", "item_id": ev["item_id"],
-                               "text": text, "final": True})
+                if any(ch.isalnum() for ch in text):
+                    await self.ui({"type": "transcript", "speaker": "caller", "item_id": ev["item_id"],
+                                   "text": text, "final": True})
                 self.on_turn("caller", ev["item_id"], text)
 
             elif t == "response.done":
@@ -179,7 +180,9 @@ class CallSession:
     def on_turn(self, speaker: str, item_id: str, text: str):
         """Store a finished transcript turn. Caller transcripts repeat with the
         same item_id as they grow, so only the newest scribe pass survives."""
-        if not text.strip():
+        # The recognizer sometimes returns only "..." or noise. There is nothing to
+        # store, translate or extract, and a text model must never be asked to guess.
+        if not any(ch.isalnum() for ch in text):
             return
         if speaker == "caller":
             self.last_caller_text_at = time.monotonic()
@@ -194,7 +197,9 @@ class CallSession:
         """Model Gateway pass over one turn, off the voice path: English
         translation, language tag, and (caller turns) the facts stated."""
         from tools.case_file import GLOSSARY
-        ask = ("You prepare call transcripts. Translate the text to plain English and name its language "
+        ask = ("You prepare call transcripts. STRICT: work only from the words in the text. Never add, guess or "
+               "complete anything the text does not literally say; if it is empty, unclear or a fragment, return "
+               "it as it is with no facts. Translate the text to plain English and name its language "
                "(for mixed speech name both, e.g. 'Hindi and English'). Also give reply_style: how a voice agent "
                "should answer this speaker, naming the BASE language, e.g. 'Hinglish: Hindi as the base with English "
                "words mixed in', 'Spanglish: Spanish as the base with English words', or just 'English'. ")
@@ -206,10 +211,14 @@ class CallSession:
                     "earlier without acknowledging it (for example 'afternoon' earlier and '7 AM' now, or two "
                     "different amounts), do not treat it as a correction: set conflict to one English sentence "
                     "naming both values. Otherwise conflict is null. "
+                    "Think like an investigator reading the whole call so far: if this turn leaves a gap, is vague "
+                    "where a detail matters, or sounds implausible, set cross_question to the one short question "
+                    "worth asking next (English); otherwise null. "
+                    f"Call so far: {self.english_transcript()[-1500:]} "
                     "Set caller_done true only if the caller clearly signals they have nothing more to add "
                     "(for example 'okay, that is all, thank you', in any language). "
                     'Answer as JSON: {"english": "...", "language": "...", "reply_style": "...", "facts": {}, '
-                    '"corrections": {}, "conflict": null, "caller_done": false}')
+                    '"corrections": {}, "conflict": null, "cross_question": null, "caller_done": false}')
         else:
             ask += 'Answer as JSON: {"english": "...", "language": "..."}'
         try:
@@ -218,6 +227,9 @@ class CallSession:
             log.exception("scribe failed")
             out = {}
         english, language = out.get("english") or text, out.get("language")
+        if len(english) > 3 * len(text) + 40:  # a "translation" far longer than the speech was invented
+            log.warning("scribe output rejected as ungrounded for turn %s", item_id)
+            english, out = text, {}
         self.turns[item_id]["english"] = english
         await insforge.upsert("transcript_turns", {
             "case_id": self.case_id, "item_id": item_id, "speaker": speaker,
@@ -228,6 +240,13 @@ class CallSession:
             await self.backup(out.get("facts") or {}, out.get("corrections") or {})
             if out.get("conflict"):
                 await self.on_conflict(out["conflict"])
+            elif out.get("cross_question") and out["cross_question"] not in self.conflicts:
+                # Live analysis: shown on the board and handed to Patrick quietly,
+                # so his next question can probe it without talking over anyone.
+                self.conflicts.add(out["cross_question"])
+                await insforge.insert("inconsistencies", {"case_id": self.case_id, "kind": "question",
+                                                          "description": out["cross_question"]})
+                await self.note(f"Analyst suggestion, use it if it fits: ask \"{out['cross_question']}\"", speak=False)
             if out.get("caller_done"):
                 await self.on_caller_done()
 
@@ -237,8 +256,21 @@ class CallSession:
         if conflict in self.conflicts:
             return
         await self.invoke("flag_inconsistency", {"description": conflict}, source="backup")
-        await self.note(f"The caller's statements conflict: {conflict} You have not settled this yet. "
-                        "Raise it kindly now and ask which one is right.")
+        # Patrick often catches it himself. Let his reply finish, and only prompt
+        # him if he did not already ask, so he never asks the same thing twice.
+        for _ in range(20):
+            if not self.response_active:
+                break
+            await asyncio.sleep(0.5)
+        await asyncio.sleep(1.5)  # his transcript lands just after the audio
+        last = [t for t in self.turns.values() if t["speaker"] == "patrick"][-1:]
+        said = last[0]["text"] if last else ""
+        asked = await insforge.llm_json(
+            'Did the agent\'s last reply already ask the caller about this conflict? Answer as JSON: {"asked": true|false}',
+            f"Conflict: {conflict}\nAgent's last reply: {said}")
+        if not asked.get("asked"):
+            await self.note(f"The caller's statements conflict: {conflict} You have not settled this yet. "
+                            "Raise it kindly now and ask which one is right.")
 
     async def on_caller_done(self):
         """End detection. If Patrick did not propose on its own, do it for it and
@@ -349,8 +381,15 @@ class CallSession:
         self.background.add(task)
         task.add_done_callback(self.background.discard)
 
-    async def note(self, text: str):
-        """Tell Patrick something a background task found, without cutting anyone off."""
+    async def note(self, text: str, speak: bool = True):
+        """Tell Patrick something a background task found, without cutting anyone off.
+        speak=False only adds it to his context; he uses it on his next turn."""
+        if not speak:
+            await self.send({"type": "conversation.item.create",
+                             "item": {"type": "message", "role": "user",
+                                      "content": [{"type": "input_text",
+                                                   "text": f"[Case board update, not spoken by the caller] {text}"}]}})
+            return
         self.pending_notes.append(text)
         await self.flush_notes()
 

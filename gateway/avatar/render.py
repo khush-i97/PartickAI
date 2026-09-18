@@ -30,6 +30,9 @@ TALK = {
              "even the small ones. Who contacted you, what did they say, and what did you do next?",
     "talk2": "Thank you, that is useful. Let me check one thing against the record before we go on. "
              "Dates and amounts matter here, so I want to be sure we have them exactly right.",
+    # Shown while a conflict is open on the board: a firmer, more focused face.
+    "serious1": "<|emotion:determination|>Hold on. Something here does not line up, and I want to get it right. "
+                "Earlier you told me one thing, and now I am hearing another. Let us slow down and go through it again.",
 }
 
 
@@ -64,7 +67,11 @@ if __name__ == "__main__":
     path = Path(sys.argv[1])
     mime = {"png": "image/png", "webp": "image/webp"}.get(path.suffix.lower().lstrip("."), "image/jpeg")
     image = f"data:{mime};base64," + base64.b64encode(path.read_bytes()).decode()
-    render("idle", image, input=silence(8))
+    only = set(sys.argv[2:])  # optional clip names, to re-render just some
+    if not only or "idle" in only:
+        render("idle", image, input=silence(8))
     for name, line in TALK.items():
+        if only and name not in only:
+            continue
         render(name, image, input_tts={"model": "higgs-tts-3", "input": line, "voice": VOICE})
     (OUT / "poster.jpg").write_bytes(path.read_bytes()) if mime == "image/jpeg" else None

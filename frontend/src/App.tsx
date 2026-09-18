@@ -1,7 +1,7 @@
 import { useRef, useState } from "react";
 import { Call, type GatewayEvent } from "./audio/call";
 import { AuthorityFinder, CaseFile, Dispatches, Inconsistencies, ToolLog, Transcript } from "./board/Panels";
-import { Avatar } from "./board/Avatar";
+import { Avatar, type AvatarHandle } from "./board/Avatar";
 import { useBoard } from "./lib/board";
 
 type Turn = { id: string; speaker: "patrick" | "caller"; text: string; final: boolean };
@@ -17,6 +17,7 @@ export default function App() {
   const [error, setError] = useState<string | null>(null);
   const call = useRef<Call | null>(null);
   const meter = useRef<HTMLDivElement>(null);
+  const avatar = useRef<AvatarHandle>(null);
 
   function onEvent(ev: GatewayEvent) {
     if (ev.type === "ready") setStatus("live");
@@ -51,6 +52,7 @@ export default function App() {
     const c = new Call({
       onEvent,
       onSpeaking: setSpeaking,
+      onVoice: (rms) => avatar.current?.voice(rms),
       // Written straight to the DOM: 10 updates a second should not re-render React.
       onLevel: (rms) => meter.current?.style.setProperty("--level", String(Math.min(1, rms * 6))),
       onClose: () => setStatus((s) => (s === "idle" ? s : "ended")),
@@ -77,7 +79,11 @@ export default function App() {
 
       <main>
         <section className="call">
-          <Avatar speaking={speaking} live={status === "live"} />
+          <Avatar
+            ref={avatar}
+            live={status === "live"}
+            mood={board.inconsistencies.some((i) => i.status === "open" && i.kind !== "question") ? "serious" : "warm"}
+          />
           <button
             className={`call-btn ${live ? "on" : ""}`}
             // Drop focus so a stray Space or Enter while talking cannot end the call.

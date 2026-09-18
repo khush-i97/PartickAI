@@ -93,9 +93,11 @@ class PlaybackProcessor extends AudioWorkletProcessor {
     if (!out) return true;
 
     let playedAny = false;
+    let energy = 0;
     for (let i = 0; i < out.length; i++) {
       if (this.available > 0) {
         out[i] = this.ring[this.read];
+        energy += out[i] * out[i];
         this.read = (this.read + 1) % this.size;
         this.available--;
         this.played++; // <- Part 2: this sample was handed to the audio output
@@ -104,6 +106,16 @@ class PlaybackProcessor extends AudioWorkletProcessor {
         // Nothing buffered. Write silence, not stale data — an "underrun".
         out[i] = 0;
       }
+    }
+
+    // Loudness of what is leaving the speakers right now, about 20 times a
+    // second. The avatar's mouth follows this, so it rests in Patrick's pauses.
+    this.levelSum = (this.levelSum || 0) + energy;
+    this.levelCount = (this.levelCount || 0) + out.length;
+    if (this.levelCount >= 1200) {
+      this.port.postMessage({ type: "level", rms: Math.sqrt(this.levelSum / this.levelCount) });
+      this.levelSum = 0;
+      this.levelCount = 0;
     }
 
     if (playedAny) {
