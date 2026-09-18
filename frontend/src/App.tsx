@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Call, type GatewayEvent } from "./audio/call";
 import { FormToFill, Report, Transcript, WhereToFile } from "./board/Panels";
 import { ReadyToSend } from "./board/ReadyToSend";
+import { SendPage } from "./board/SendPage";
 import { FilingDrawer, drawerSummary } from "./board/FilingDrawer";
 import { Avatar, type AvatarHandle } from "./board/Avatar";
 import { useBoard } from "./lib/board";
@@ -10,6 +11,14 @@ type Turn = { id: string; speaker: "patrick" | "caller"; text: string; final: bo
 type Status = "idle" | "connecting" | "live" | "ended";
 
 export default function App() {
+  // ?send=<case id> is the only other view. Still no router: one more query
+  // parameter is cheaper than a dependency, and ?case=<id> keeps working.
+  const sendFor = new URLSearchParams(location.search).get("send");
+  if (sendFor) return <SendPage caseId={sendFor} />;
+  return <CallScreen />;
+}
+
+function CallScreen() {
   const [status, setStatus] = useState<Status>("idle");
   const [turns, setTurns] = useState<Turn[]>([]);
   // ?case=<id> opens a finished case read only, which is how eval calls are reviewed.

@@ -194,7 +194,8 @@ async def build_packet(case_id: str) -> dict:
         "details.html": await _upload(case_id, "details.html", _details_html(case_id, answers, form_fields, live)),
     }
 
-    drafts = [_draft(a, case_id, summary, answers, form_fields, files) for a in live]
+    sizes = {name: len(data) for name, (_type, data) in documents.items()}
+    drafts = [_draft(a, case_id, summary, answers, form_fields, files, sizes) for a in live]
     return {"case_id": case_id, "case_type": case.get("case_type"), "summary": summary,
             "files": files, "documents": documents, "drafts": drafts}
 
@@ -254,7 +255,8 @@ async def _summary(answers: dict, turns: list[dict]) -> str:
         return ""
 
 
-def _draft(authority: dict, case_id: str, summary: str, answers: dict, form_fields: list[dict], files: dict) -> dict:
+def _draft(authority: dict, case_id: str, summary: str, answers: dict, form_fields: list[dict],
+           files: dict, sizes: dict) -> dict:
     """The email itself. Written from the case file rather than by a model, so
     the wording cannot drift into claims the caller never made."""
     reference = case_id[:8].upper()
@@ -290,7 +292,7 @@ def _draft(authority: dict, case_id: str, summary: str, answers: dict, form_fiel
         "body_html": redact(body),
         # PDFs and the plain-text answers travel with the email; the .html
         # versions are for viewing in the app only.
-        "attachments": [{"name": k, "url": v} for k, v in files.items()
+        "attachments": [{"name": k, "url": v, "bytes": sizes.get(k, 0)} for k, v in files.items()
                         if v and not k.endswith(".html")],
         "missing": missing,
         # No email address means a web form: those are never submitted for the caller.
