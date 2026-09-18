@@ -38,12 +38,34 @@ async def find_authorities(session, case_type: str, location: str):
                                      "conversation going; you will be told when the offices are found."}
 
 
+# Places a caller names when asked where something happened, which are not the
+# city that decides which office handles it. "ASU" became "A C University",
+# which searched as a city and filed a Phoenix wallet with police in Leesburg,
+# Virginia. These belong in place_lost.
+VENUE_WORDS = ("university", "college", "campus", "school", "airport", "station", "terminal",
+               "mall", "stadium", "hospital", "library", "hotel", "street", "avenue", "road")
+
+
+def usable_city(location: str | None) -> str | None:
+    """The city a search can trust, or None when the caller has not really given
+    one yet. A search run on a bad city does not fail — it confidently returns
+    the wrong town's police force, which is worse than waiting."""
+    parts = [p.strip() for p in (location or "").split(",") if p.strip()]
+    if len(parts) < 2:          # "Phoenix" alone cannot pick between the Phoenixes
+        return None
+    city = parts[0]
+    if len(city) < 3 or any(w in city.lower() for w in VENUE_WORDS):
+        return None
+    return city
+
+
 def ready_destinations(session) -> list[dict]:
     """Destinations whose search can start: every {placeholder} in the query is known."""
-    if not session.case_type or not session.fields.get("location"):
+    city = usable_city(session.fields.get("location"))
+    if not session.case_type or not city:
         return []
     parts = [p.strip() for p in session.fields["location"].split(",")]
-    known = {**session.fields, "city": parts[0], "country": parts[-1], "state_or_country": parts[-1],
+    known = {**session.fields, "city": city, "country": parts[-1], "state_or_country": parts[-1],
              "issue": session.fields.get("what_happened", "")}
     ready = []
     for dest in ROUTING["case_types"][session.case_type]["destinations"]:
@@ -98,6 +120,10 @@ async def search_once(dest: dict, queries: list[str]) -> dict | None:
         "the organization on any other site, including other government sites, nonprofits, blogs, news, directories "
         "and law firms, do not count. If no result passes, answer found false. "
         "Name the specific office or service (e.g. 'SF 311', not the website name). "
+        "SERVES THE RIGHT PLACE: when the query names a city, state or country, the organization must actually "
+        "serve it. A police force or city office for a different town is wrong even when the page looks official, "
+        "and a report filed there goes nowhere; answer found false rather than offering it. National agencies are "
+        "fine for a national query. "
         "Copy contact details only if they appear in the results; never invent them. "
         "address is the office's postal or walk-in address, copied exactly as the results write it, or null. "
         "Many agencies publish only a phone and an online form: null is the right answer then. Never assemble an "

@@ -82,7 +82,10 @@ fields:
   reference_numbers: transaction, order, ticket or complaint numbers
   evidence: proof the caller has, such as screenshots, messages or receipts
   desired_outcome: what the caller wants to happen
-  location: CITY and state or country only, for example "Phoenix, Arizona"
+  location: >-
+    the CITY plus its state or country, for example "Phoenix, Arizona". Never a campus, airport, station,
+    shop, street or landmark, and never the city on its own. This decides which office handles the case,
+    so a wrong one sends the report to another town. A venue belongs in place_lost.
   address: street address relevant to the case
   place_lost: the venue, airport, station, shop or transit line where an item was lost
   item_description: the lost or stolen item, with identifying details

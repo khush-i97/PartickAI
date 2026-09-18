@@ -370,6 +370,16 @@ class CallSession:
         whenever a fact or the case type changes, so the bank search can start
         later than the police search if the bank's name arrives later."""
         from tools import authorities
+        # A campus, an airport or a bare city name cannot pick the office that
+        # handles this, so nothing is searched until Patrick has a real one.
+        # Silence would look like the search is simply slow, so he is told to ask.
+        if self.case_type and self.fields.get("location") and not authorities.usable_city(self.fields["location"]):
+            if "location" not in self.asked_for:
+                self.asked_for.add("location")
+                await self.note(f"\"{self.fields['location']}\" is not a city, so the right office cannot be found "
+                                "yet. Ask which town or city this happened in, and which state or country, then "
+                                "save it with update_case_file as location, for example \"Phoenix, Arizona\".")
+            return
         for dest in authorities.ready_destinations(self):
             self.searched_roles.add(dest["role"])
             self.spawn(self.search_and_report(dest))
