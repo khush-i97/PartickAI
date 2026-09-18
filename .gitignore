@@ -1,0 +1,43 @@
+.env
+.env.*
+!.env.example
+node_modules/
+dist/
+__pycache__/
+.venv/
+*.pyc
+.DS_Store
+
+# InsForge & AI agent skills
+.insforge
+.agent
+.agents
+.augment
+.claude
+.cline
+.github/copilot*
+.kilocode
+.qoder
+.qwen
+.roo
+.trae
+.windsurf
+
+# Local agent credentials
+.insta/agent-session.json
+
+.insta/.agent-session-*.tmp
+
+# Local: the control plane this machine linked against
+.insta/link-plane.json
+
+# InstaCloud: local observe-hook state (regenerated per machine, not source)
+.insta/observe/
+.insta/audit.jsonl
+
+# InstaCloud: agent skills installed by `npx skills add` (regenerable, not source)
+.claude/skills/
+.agents/skills/
+.github/skills/
+skills-lock.json
+.codex/

@@ -1,0 +1,118 @@
+import { useRef, useState } from "react";
+import { Call, type GatewayEvent } from "./audio/call";
+
+type Turn = { id: string; speaker: "rook" | "caller"; text: string; final: boolean };
+type ToolLine = { at: string; name: string; args: Record<string, unknown> };
+type Status = "idle" | "connecting" | "live" | "ended";
+
+export default function App() {
+  const [status, setStatus] = useState<Status>("idle");
+  const [turns, setTurns] = useState<Turn[]>([]);
+  const [tools, setTools] = useState<ToolLine[]>([]);
+  const [speaking, setSpeaking] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const call = useRef<Call | null>(null);
+  const meter = useRef<HTMLDivElement>(null);
+
+  function onEvent(ev: GatewayEvent) {
+    if (ev.type === "ready") setStatus("live");
+    if (ev.type === "ended") setStatus("ended");
+    if (ev.type === "error") setError(JSON.stringify(ev.error));
+    if (ev.type === "tool") {
+      const at = new Date().toLocaleTimeString([], { hour12: false });
+      setTools((t) => [{ at, name: ev.name, args: ev.args }, ...t].slice(0, 50));
+    }
+    if (ev.type === "transcript") {
+      setTurns((prev) => {
+        const i = prev.findIndex((t) => t.id === ev.item_id);
+        // Rook's words stream in as deltas; the final event carries the full text.
+        if (i === -1) return [...prev, { id: ev.item_id, speaker: ev.speaker, text: ev.text, final: ev.final }];
+        const next = [...prev];
+        next[i] = { ...next[i], text: ev.final ? ev.text : next[i].text + ev.text, final: ev.final };
+        return next;
+      });
+    }
+  }
+
+  async function toggle() {
+    if (call.current) {
+      await call.current.stop();
+      call.current = null;
+      setStatus("ended");
+      return;
+    }
+    setError(null);
+    setTurns([]);
+    setTools([]);
+    setStatus("connecting");
+    const c = new Call({
+      onEvent,
+      onSpeaking: setSpeaking,
+      // Written straight to the DOM: 10 updates a second should not re-render React.
+      onLevel: (rms) => meter.current?.style.setProperty("--level", String(Math.min(1, rms * 6))),
+      onClose: () => setStatus((s) => (s === "idle" ? s : "ended")),
+    });
+    call.current = c;
+    try {
+      await c.start();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+      await c.stop(); // do not leave a half-open call behind, e.g. when the mic is denied
+      setStatus("idle");
+      call.current = null;
+    }
+  }
+
+  const live = status === "live" || status === "connecting";
+
+  return (
+    <div className="app">
+      <header>
+        <h1>Case Closed</h1>
+        <p className="sub">Detective Rook · voice intake</p>
+      </header>
+
+      <main>
+        <section className="call">
+          <button className={`call-btn ${live ? "on" : ""}`} onClick={toggle} disabled={status === "connecting"}>
+            {status === "connecting" ? "Connecting…" : live ? "End call" : "Call Rook"}
+          </button>
+          <div className="meter" ref={meter} aria-hidden />
+          <p className="state">
+            {status === "idle" && "Tap to start. Speak any language."}
+            {status === "connecting" && "Reaching the detective…"}
+            {status === "live" && (speaking ? "Rook is speaking" : "Rook is listening")}
+            {status === "ended" && "Call ended."}
+          </p>
+          {error && <p className="error">{error}</p>}
+        </section>
+
+        <section className="panel transcript">
+          <h2>Transcript</h2>
+          <div className="scroll">
+            {turns.length === 0 && <p className="empty">The conversation will appear here.</p>}
+            {turns.map((t) => (
+              <div key={t.id} className={`turn ${t.speaker}`}>
+                <span className="who">{t.speaker === "rook" ? "Rook" : "Caller"}</span>
+                <p>{t.text}</p>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        <section className="panel log">
+          <h2>Tool calls</h2>
+          <div className="scroll">
+            {tools.length === 0 && <p className="empty">Rook's actions will appear here.</p>}
+            {tools.map((t, i) => (
+              <div key={i} className="tool-line">
+                <span className="at">{t.at}</span> <span className="name">{t.name}</span>{" "}
+                <span className="args">{JSON.stringify(t.args)}</span>
+              </div>
+            ))}
+          </div>
+        </section>
+      </main>
+    </div>
+  );
+}
