@@ -31,7 +31,11 @@
 .rail .panel { display: flex; flex-direction: column; min-height: 0; }
 .rail .panel.transcript { flex: 1; }
 .rail .scroll { flex: 1; }
+/* The right rail scrolls as one column. Its panels keep their natural height:
+   left to flex they shrink below their content, and the overflow then paints
+   straight over the panel below. */
 .rail.right { overflow-y: auto; }
+.rail.right .panel { flex: none; }
 
 /* Centre stage */
 .centre {
