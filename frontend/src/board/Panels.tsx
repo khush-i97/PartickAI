@@ -196,6 +196,9 @@ export function WhereToFile({ board }: { board: Board }) {
           <h3>{a.name}</h3>
           {a.handles && <p className="handles">{a.handles}</p>}
           <dl className="details">
+            {/* Only present when the office actually publishes one — plenty run
+                on a phone line and a web form alone. */}
+            {a.address && <div><dt>Address</dt><dd>{a.address}</dd></div>}
             {a.phone && <div><dt>Phone</dt><dd>{a.phone}</dd></div>}
             {a.email && <div><dt>Email</dt><dd>{a.email}</dd></div>}
             {a.form_url && (

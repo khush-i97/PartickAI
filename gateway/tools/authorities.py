@@ -71,7 +71,7 @@ async def search_destination(session, dest: dict):
     row = await insforge.insert("authorities", {
         "case_id": session.case_id, "role": dest["role"], "rank": order.index(dest["role"]) + 1,
         "is_cached": cached, **{k: contact.get(k) for k in
-                                ("name", "handles", "reason", "email", "form_url", "phone", "source_url")}})
+                                ("name", "handles", "reason", "email", "form_url", "phone", "address", "source_url")}})
     session.authorities[dest["role"]] = row
     return row
 
@@ -87,7 +87,8 @@ async def live_lookup(dest: dict) -> dict | None:
 
 async def search_once(dest: dict, queries: list[str]) -> dict | None:
     results = await web_search(queries, f"Find the official page of: {dest['label']}. I need the organization's own "
-                                        "website or a government site, with its phone, email and any online report form.")
+                                        "website or a government site, with its phone, email, postal address and any "
+                                        "online report form.")
     if not results:
         return None
     out = await insforge.llm_json(
@@ -98,9 +99,14 @@ async def search_once(dest: dict, queries: list[str]) -> dict | None:
         "and law firms, do not count. If no result passes, answer found false. "
         "Name the specific office or service (e.g. 'SF 311', not the website name). "
         "Copy contact details only if they appear in the results; never invent them. "
+        "address is the office's postal or walk-in address, copied exactly as the results write it, or null. "
+        "Many agencies publish only a phone and an online form: null is the right answer then. Never assemble an "
+        "address from a city name, and never guess a street or postcode — a wrong address on a filed report is "
+        "worse than none. "
         'Answer as JSON: {"found": true|false, "name": "...", "handles": "what they handle, short", '
         '"reason": "one sentence on why this is the right office", "email": "... or null", '
-        '"form_url": "online report form URL or null", "phone": "... or null", "source_url": "the result URL used"}',
+        '"form_url": "online report form URL or null", "phone": "... or null", '
+        '"address": "... or null", "source_url": "the result URL used"}',
         f"Needed: {dest['label']}\nSearch queries: {'; '.join(queries)}\nResults: {json.dumps(results)}")
     return out if out.get("found") and out.get("name") and out.get("source_url") else None
 

@@ -127,7 +127,8 @@
 .details { margin: 10px 0 0; display: grid; gap: 6px; }
 .details div { display: grid; grid-template-columns: 74px minmax(0, 1fr); gap: 8px; align-items: baseline; }
 .details dt { font: 10px ui-monospace, Menlo, monospace; letter-spacing: 0.1em; text-transform: uppercase; color: var(--dim); }
-.details dd { margin: 0; font: 13px ui-monospace, Menlo, monospace; word-break: break-word; }
+/* Addresses arrive as the office writes them, over several lines. */
+.details dd { margin: 0; font: 13px ui-monospace, Menlo, monospace; word-break: break-word; white-space: pre-line; }
 
 /* Where to file, in the rail: one office per block, contacts readable at a
    glance because they are what the caller has to act on. */
