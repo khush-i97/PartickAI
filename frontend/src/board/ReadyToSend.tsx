@@ -1,8 +1,9 @@
-/** The packet, ready for a person to look at before anything leaves.
+/** The packet, for a person to read before it goes.
  *
- *  Sending is off. There is no send endpoint on the gateway either, so this
- *  cannot be turned on from the browser alone — reporting to a real police
- *  force should take a deliberate decision, not a stray click. */
+ *  Send is real, but where it lands is the gateway's decision, not this
+ *  component's: with safe mode on it goes to the demo inbox with the real
+ *  office named in the subject. Nothing here can address a police force
+ *  directly, however the button is wired. */
 import { useEffect, useState } from "react";
 import type { Board } from "../lib/board";
 
@@ -26,6 +27,21 @@ const API = (import.meta.env.VITE_GATEWAY_URL || "").replace(/^ws/, "http");
 export function ReadyToSend({ board, caseId }: { board: Board; caseId: string | null }) {
   const [packet, setPacket] = useState<Packet | null>(null);
   const [state, setState] = useState<"idle" | "loading" | "failed">("idle");
+  const [sending, setSending] = useState<Record<string, "sending" | "failed">>({});
+  const [sent, setSent] = useState<Record<string, string>>({});
+
+  async function send(d: Draft) {
+    setSending((s) => ({ ...s, [d.authority_id]: "sending" }));
+    try {
+      const r = await fetch(`${API}/api/cases/${caseId}/send/${d.authority_id}`, { method: "POST" });
+      const out = await r.json();
+      if (out.status !== "sent") throw new Error(out.error || "failed");
+      setSent((s) => ({ ...s, [d.authority_id]: out.delivered_to }));
+      setSending((s) => ({ ...s, [d.authority_id]: undefined as never }));
+    } catch {
+      setSending((s) => ({ ...s, [d.authority_id]: "failed" }));
+    }
+  }
   const ready = board.authorities.filter((a) => a.approval !== "removed").length;
 
   async function build() {
@@ -88,12 +104,26 @@ export function ReadyToSend({ board, caseId }: { board: Board; caseId: string | 
           )}
 
           <div className="actions">
-            <button className="btn" disabled title="Sending is switched off">Send</button>
+            <button
+              className="btn primary"
+              onClick={() => send(d)}
+              disabled={sending[d.authority_id] === "sending" || sent[d.authority_id] !== undefined}
+            >
+              {sending[d.authority_id] === "sending" ? "Sending…"
+                : sent[d.authority_id] ? "Sent" : "Send with the files"}
+            </button>
             {d.form_url && (
-              <a className="btn primary" href={d.form_url} target="_blank" rel="noreferrer">Open their form ↗</a>
+              <a className="btn" href={d.form_url} target="_blank" rel="noreferrer">Open their form ↗</a>
             )}
           </div>
-          {!d.sendable && (
+          {sent[d.authority_id] && (
+            <p className="reason">
+              Delivered to <strong>{sent[d.authority_id]}</strong>, with {d.attachments.length} files attached.
+              Safe mode is on, so {d.to_name} was named in the subject but not mailed.
+            </p>
+          )}
+          {sending[d.authority_id] === "failed" && <p className="error">That send failed. The gateway log has why.</p>}
+          {!d.sendable && !sent[d.authority_id] && (
             <p className="reason">
               This office takes reports through its web form, not email. Open the form and paste from answers.txt.
             </p>
@@ -103,7 +133,8 @@ export function ReadyToSend({ board, caseId }: { board: Board; caseId: string | 
 
       {packet && (
         <p className="reason">
-          Nothing has been sent. Sending is switched off, and the gateway has no send route yet.
+          Safe mode is on: every send goes to the demo inbox with the real office named in the subject.
+          Nothing reaches an actual police force or agency.
         </p>
       )}
     </section>

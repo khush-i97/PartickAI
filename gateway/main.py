@@ -36,7 +36,19 @@ async def packet(case_id: str):
     endpoint on purpose — sending a report to a real police force is a decision
     someone makes deliberately, not something this route can be talked into."""
     import outbox  # noqa: PLC0415 — keeps the websocket path's import cost unchanged
-    return await outbox.build_packet(case_id)
+    packet = await outbox.build_packet(case_id)
+    return {k: v for k, v in packet.items() if k != "documents"}  # bytes are not JSON
+
+
+@app.post("/api/cases/{case_id}/send/{authority_id}")
+async def send(case_id: str, authority_id: str):
+    """Send one drafted email with its files attached.
+
+    Where it lands is mailer.py's decision, not this route's: with SAFE_MODE on
+    it goes to the demo inbox with the real office named in the subject, and
+    mailer refuses outright if that inbox is not configured."""
+    import outbox  # noqa: PLC0415
+    return await outbox.send_draft(case_id, authority_id)
 
 
 @app.websocket("/ws/call")

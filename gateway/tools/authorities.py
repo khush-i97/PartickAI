@@ -89,6 +89,11 @@ async def search_destination(session, dest: dict):
                           {"status": "done" if contact and not cached else "failed", "result_count": 1 if contact else 0})
     if not contact:
         return None
+    # Search excerpts rarely carry an inbox even when the office publishes one:
+    # Leesburg's police email sits far down their contact page. Worth one read.
+    if not contact.get("email") and contact.get("source_url"):
+        contact["email"] = await published_email(contact["source_url"])
+
     order = [d["role"] for d in ROUTING["case_types"][session.case_type]["destinations"]]
     row = await insforge.insert("authorities", {
         "case_id": session.case_id, "role": dest["role"], "rank": order.index(dest["role"]) + 1,
@@ -96,6 +101,41 @@ async def search_destination(session, dest: dict):
                                 ("name", "handles", "reason", "email", "form_url", "phone", "address", "source_url")}})
     session.authorities[dest["role"]] = row
     return row
+
+
+EMAIL_RE = re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}")
+# An inbox someone reads, rather than a newsletter or a webmaster alias.
+PREFERRED = ("police", "report", "complaint", "fraud", "record", "info", "contact", "help", "service", "support")
+JUNK = ("example.", "sentry.", "wixpress.", "@2x.", ".png", ".jpg", ".gif", "no-reply", "noreply", "donotreply")
+
+
+async def published_email(source_url: str) -> str | None:
+    """The office's own published address, read off its own page.
+
+    Only ever copied, never constructed, and only accepted on the same domain as
+    the page it came from — an address invented for a police force would send a
+    report into nowhere and the caller would never know."""
+    from . import forms  # circular at module level: forms imports nothing from here
+    try:
+        page = await asyncio.wait_for(forms.read_page(source_url), 20)
+    except Exception as e:
+        log.warning("could not read %s for an email: %s", source_url, e)
+        return None
+    if not page:
+        return None
+
+    domain = re.sub(r"^www\.", "", (re.search(r"https?://([^/]+)", source_url) or [None, ""])[1]).lower()
+    root = ".".join(domain.split(".")[-2:]) if domain else ""
+    found = []
+    for raw in EMAIL_RE.findall(page):
+        address = raw.strip(".,;:)").lower()
+        if any(j in address for j in JUNK) or (root and not address.endswith(root)):
+            continue
+        if address not in found:
+            found.append(address)
+    if not found:
+        return None
+    return next((a for a in found if any(p in a.split("@")[0] for p in PREFERRED)), found[0])
 
 
 async def live_lookup(dest: dict) -> dict | None:

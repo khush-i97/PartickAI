@@ -12,6 +12,7 @@ import logging
 from fpdf import FPDF
 
 import insforge
+import mailer
 from redact import redact
 
 log = logging.getLogger("outbox")
@@ -178,15 +179,15 @@ async def build_packet(case_id: str) -> dict:
     # PDFs are what an office expects an attached report to look like, and they
     # print and copy cleanly. The .txt exists because most of these offices take
     # a web form, and nobody can paste a PDF into a form field.
+    documents = {
+        "summary.pdf": ("application/pdf", _summary_pdf(ref, summary, answers)),
+        "details.pdf": ("application/pdf", _details_pdf(ref, answers, form_fields, live)),
+        "transcript.pdf": ("application/pdf", _transcript_pdf(ref, turns)),
+        "answers.txt": ("text/plain; charset=utf-8", _answers_text(ref, summary, answers, form_fields, live).encode()),
+    }
     files = {
-        "summary.pdf": await _put(case_id, "summary.pdf", "application/pdf",
-                                  _summary_pdf(ref, summary, answers)),
-        "details.pdf": await _put(case_id, "details.pdf", "application/pdf",
-                                  _details_pdf(ref, answers, form_fields, live)),
-        "transcript.pdf": await _put(case_id, "transcript.pdf", "application/pdf",
-                                     _transcript_pdf(ref, turns)),
-        "answers.txt": await _put(case_id, "answers.txt", "text/plain; charset=utf-8",
-                                  _answers_text(ref, summary, answers, form_fields, live).encode()),
+        **{name: await _put(case_id, name, content_type, data)
+           for name, (content_type, data) in documents.items()},
         # Kept for the in-app view links. Never attached: government mail filters
         # routinely quarantine .html attachments.
         "transcript.html": await _upload(case_id, "transcript.html", _transcript_html(case_id, turns)),
@@ -195,7 +196,44 @@ async def build_packet(case_id: str) -> dict:
 
     drafts = [_draft(a, case_id, summary, answers, form_fields, files) for a in live]
     return {"case_id": case_id, "case_type": case.get("case_type"), "summary": summary,
-            "files": files, "drafts": drafts}
+            "files": files, "documents": documents, "drafts": drafts}
+
+
+async def send_draft(case_id: str, authority_id: str) -> dict:
+    """Send one drafted email, with its files attached.
+
+    Everything goes through mailer.send_email, so safe mode decides where it
+    actually lands: with SAFE_MODE on, the real office is named in the subject
+    and the message is redirected to the demo inbox. An office with no email
+    address is not skipped here — in safe mode there is a real inbox to send to,
+    and mailer refuses on its own once safe mode is off."""
+    packet = await build_packet(case_id)
+    draft = next((d for d in packet["drafts"] if d["authority_id"] == authority_id), None)
+    if not draft:
+        return {"error": "no draft for that office"}
+
+    attachments = [{"name": name, "content_type": content_type, "content": data}
+                   for name, (content_type, data) in packet["documents"].items()]
+    row = await insforge.insert("dispatches", {
+        "case_id": case_id, "authority_id": authority_id, "kind": "authority",
+        "intended_name": draft["to_name"], "intended_recipient": draft["to_address"],
+        "form_url": draft["form_url"], "source_url": draft["source_url"],
+        "status": "drafting", "subject": draft["subject"]})
+    try:
+        sent = await mailer.send_email(
+            kind="authority", intended_name=draft["to_name"], intended_address=draft["to_address"],
+            subject=draft["subject"], body_html=draft["body_html"],
+            source_url=draft["source_url"], form_url=draft["form_url"], attachments=attachments)
+    except Exception as e:
+        log.exception("sending to %s failed", draft["to_name"])
+        await insforge.update("dispatches", {"id": row["id"]}, {"status": "failed", "error": str(e)[:400]})
+        return {"status": "failed", "error": str(e)[:200]}
+
+    await insforge.update("dispatches", {"id": row["id"]},
+                          {"status": "sent", "delivered_to": sent["delivered_to"],
+                           "subject": sent["subject"][:500], "body_html": sent["body_html"]})
+    return {"status": "sent", "delivered_to": sent["delivered_to"], "attached": sent["attached"],
+            "safe_mode": sent["safe_mode"], "intended_for": draft["to_name"]}
 
 
 async def _summary(answers: dict, turns: list[dict]) -> str:
