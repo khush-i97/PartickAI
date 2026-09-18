@@ -111,3 +111,13 @@ a { color: var(--accent); }
 .sheet { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 16px; width: min(760px, 100%); }
 .sheet .subject { margin: 0 0 4px; font-size: 16px; }
 .sheet iframe { width: 100%; height: 60vh; margin-top: 12px; border: 1px solid var(--line); border-radius: 4px; background: #fff; }
+
+.avatar { position: relative; width: 220px; aspect-ratio: 1; border-radius: 50%; overflow: hidden;
+  border: 2px solid var(--line); filter: grayscale(0.85) contrast(1.05); transition: border-color 200ms ease, filter 400ms ease; }
+.avatar.live { filter: grayscale(0.35) contrast(1.05); }
+.avatar.speaking { border-color: var(--accent); }
+.avatar video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.avatar .talk { opacity: 0; transition: opacity 180ms ease; }
+.avatar.speaking .talk { opacity: 1; }
+.avatar + .call-btn { width: 220px; height: 56px; border-radius: 28px; font-size: 18px; }
+.avatar + .call-btn + .meter { width: 220px; }

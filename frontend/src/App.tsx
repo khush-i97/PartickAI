@@ -1,6 +1,7 @@
 import { useRef, useState } from "react";
 import { Call, type GatewayEvent } from "./audio/call";
 import { AuthorityFinder, CaseFile, Dispatches, Inconsistencies, ToolLog, Transcript } from "./board/Panels";
+import { Avatar } from "./board/Avatar";
 import { useBoard } from "./lib/board";
 
 type Turn = { id: string; speaker: "patrick" | "caller"; text: string; final: boolean };
@@ -73,6 +74,7 @@ export default function App() {
 
       <main>
         <section className="call">
+          <Avatar speaking={speaking} live={status === "live"} />
           <button className={`call-btn ${live ? "on" : ""}`} onClick={toggle} disabled={status === "connecting"}>
             {status === "connecting" ? "Connecting…" : live ? "End call" : "Call Patrick"}
           </button>
