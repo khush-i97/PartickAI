@@ -251,7 +251,7 @@ flowchart LR
         subgraph MAIN["branch: main · always on · WebSocket mode"]
             G1[gateway container]
         end
-        SEC[(Secrets<br/>8 keys, never in the image)]
+        SEC[(Secrets<br/>12 keys, never in the image)]
         SEC --> G1
         SEC -. "copied on branch create" .-> G2
     end
@@ -266,7 +266,7 @@ flowchart LR
 | **WebSocket mode** (`--websocket`) | Connection based concurrency and a larger guest, for calls that stay open for minutes. We held a silent connection open for over two minutes to confirm the platform does not cut idle sockets. |
 | **Always on** | The production gateway never scales to zero, so the first caller does not wait for a cold start. |
 | **Branch environments** | A `staging` branch is a full copy of the gateway with its own URL and the same secrets. Every gateway change goes there first and a simulated caller runs a complete call against it, because **a production redeploy drops calls in progress**. Staging scales to zero, so it costs nothing while idle. |
-| **Secrets** | Eight keys (Boson, Parallel, Tavily, InsForge URL and key, text model, safe mode, allowed origins) are set with `insta secrets set NAME` from stdin, never baked into the image and never in the repo. Setting one redeploys the service that uses it. `SAFE_MODE` lives here too, so production cannot be switched to real sending by a code change alone. The two demo inboxes will be added the same way. |
+| **Secrets** | Twelve keys (Boson, Parallel, Tavily, InsForge URL and key, text model, AgentMail key and sender, safe mode, the two demo inboxes, allowed origins) are set with `insta secrets set NAME` from stdin, never baked into the image and never in the repo. Setting one redeploys the service that uses it. `SAFE_MODE` lives here too, so production cannot be switched to real sending by a code change alone. |
 | **Logs** | The gateway logs who closed every call and why (browser, or Higgs with its close code for quota and concurrency limits). `insta logs compute --since 15m` is how we proved that short calls were ended by the browser, not dropped by the platform. |
 | **Agent setup** (`npx insta setup agent`) | The CLI, skill and MCP server were installed by the coding agent that built this project, which then created the service, set the secrets, deployed, branched and read logs itself. The whole deployment history of this repo was done that way. |
 
@@ -303,7 +303,7 @@ Enforced in [`gateway/mailer.py`](gateway/mailer.py), proven by [`gateway/tests/
 
 1. `SAFE_MODE` missing, empty, or anything other than the exact word `false` means **on**.
 2. All mail goes through one function, `send_email`. A test scans the codebase and fails if any other file touches the mail endpoint.
-3. In safe mode the real recipient is never mailed. Authority reports go to `DEMO_AUTHORITY_INBOX`, caller confirmations to `DEMO_CALLER_INBOX`. If those are not set, nothing is sent and the dispatch shows **Blocked by safe mode**, which is what the screenshot above shows.
+3. In safe mode the real recipient is never mailed. Authority reports go to `DEMO_AUTHORITY_INBOX`, caller confirmations to `DEMO_CALLER_INBOX`. If those are not set, nothing is sent and the dispatch shows **Blocked by safe mode**. The screenshot above was taken before the demo inboxes were configured, so it shows exactly that.
 4. A last gate, `_deliver`, re-checks the address and raises `UnsafeRecipientError`, logged, for anything outside the two demo inboxes.
 5. Every email names the real intended recipient in the subject and at the top of the body, for example `[DEMO] Intended for: HDFC Bank (…)`, plus the source URL where the contact was found.
 6. Web forms are never opened or submitted. The real form URL is shown on screen; the prepared answers go in the email that stands in for it.
@@ -439,7 +439,7 @@ Other scenarios tested against live search: Chase Security Center, the FBI's IC3
 
 Stated plainly, because a demo that hides its gaps is not worth trusting.
 
-- **No email has been delivered yet.** The demo inboxes were not configured at the time of writing, so every dispatch so far shows *Blocked by safe mode*. The send path is unit tested but InsForge Messaging has not been exercised end to end.
+- **Email delivery is proven for authority reports only.** Reports are delivered through AgentMail to the demo authority inbox with the PDFs attached (summary, details, transcript, prepared answers), each naming its real intended office in the subject. The caller confirmation path has not been exercised end to end, and sending now happens on a click in the review page rather than by voice approval alone. The send endpoint has no login: in safe mode it can only reach the demo inboxes, but it must be closed before safe mode is ever turned off.
 - **Mostly tested with simulated callers** (Higgs TTS voices streamed through the real gateway). Real microphone calls work, but have had far less coverage: echo, accents and messy interruptions need more testing.
 - **Only the scam flow has been run as a complete call.** The other four case types have verified classification and authority search, not a full call through to filing.
 - **The evaluation harness is not built.** The tables exist; the 20 simulated callers and scoring do not. The InstaCloud staging branch is ready for it, but today it is driven by one simulated caller at a time, by hand.
