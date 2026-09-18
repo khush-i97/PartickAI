@@ -19,6 +19,7 @@ Detective Patrick is a voice agent built on [Higgs Audio](https://www.boson.ai) 
 - [How Higgs Audio powers it](#how-higgs-audio-powers-it)
 - [Functional architecture](#functional-architecture)
 - [Technical architecture](#technical-architecture)
+- [How we use InstaCloud](#how-we-use-instacloud)
 - [What we learned about Higgs Realtime](#what-we-learned-about-higgs-realtime)
 - [Safe sending](#safe-sending)
 - [Data model](#data-model)
@@ -235,6 +236,54 @@ db/                     schema, realtime triggers, mock bank seed, cached fallba
 
 ---
 
+## How we use InstaCloud
+
+The voice gateway is the one piece that cannot be serverless: every call is two long lived WebSockets held open for minutes (browser to gateway, gateway to Higgs), with background tasks running beside them. InstaCloud runs it, and we leaned on most of what it offers for an agent built project.
+
+```mermaid
+flowchart LR
+    DEV[Coding agent + insta CLI] -- "insta deploy . --branch staging" --> STG
+    DEV -- "insta deploy ." --> MAIN
+    subgraph IC["InstaCloud project: patrick"]
+        subgraph STG["branch: staging · scales to zero"]
+            G2[gateway container]
+        end
+        subgraph MAIN["branch: main · always on · WebSocket mode"]
+            G1[gateway container]
+        end
+        SEC[(Secrets<br/>8 keys, never in the image)]
+        SEC --> G1
+        SEC -. "copied on branch create" .-> G2
+    end
+    SIM[Simulated callers<br/>Higgs TTS voices] -- "full call over wss" --> G2
+    SITE[patrick.insforge.site] -- "wss, origin checked" --> G1
+    G1 --> LOGS[insta logs · who closed each call and why]
+```
+
+| InstaCloud feature | How Patrick uses it |
+|---|---|
+| **Remote source builds** | `insta deploy .` packs the repo, builds the root `Dockerfile` remotely and pins the image by digest. The development machine has no Docker engine at all. |
+| **WebSocket mode** (`--websocket`) | Connection based concurrency and a larger guest, for calls that stay open for minutes. We held a silent connection open for over two minutes to confirm the platform does not cut idle sockets. |
+| **Always on** | The production gateway never scales to zero, so the first caller does not wait for a cold start. |
+| **Branch environments** | A `staging` branch is a full copy of the gateway with its own URL and the same secrets. Every gateway change goes there first and a simulated caller runs a complete call against it, because **a production redeploy drops calls in progress**. Staging scales to zero, so it costs nothing while idle. |
+| **Secrets** | Eight keys (Boson, Parallel, Tavily, InsForge URL and key, text model, safe mode, allowed origins) are set with `insta secrets set NAME` from stdin, never baked into the image and never in the repo. Setting one redeploys the service that uses it. `SAFE_MODE` lives here too, so production cannot be switched to real sending by a code change alone. The two demo inboxes will be added the same way. |
+| **Logs** | The gateway logs who closed every call and why (browser, or Higgs with its close code for quota and concurrency limits). `insta logs compute --since 15m` is how we proved that short calls were ended by the browser, not dropped by the platform. |
+| **Agent setup** (`npx insta setup agent`) | The CLI, skill and MCP server were installed by the coding agent that built this project, which then created the service, set the secrets, deployed, branched and read logs itself. The whole deployment history of this repo was done that way. |
+
+Staging already paid for itself: the first call we ran on it showed Patrick saying "just to pin [redacted] the timing", a redaction rule that mistook "pin down" for a PIN. It was fixed and verified on staging before production was touched.
+
+**The release routine**
+
+```bash
+insta deploy . --branch staging --port 8080 --websocket   # 1. ship to the copy
+# 2. run a full simulated call against the staging URL and read the result
+insta deploy . --port 8080 --websocket                    # 3. only then, production
+```
+
+What we do not use: InstaCloud's Postgres and storage. The data lives in InsForge because the board needs InsForge Realtime, so a branch gives us an isolated gateway but shares the database. Evaluation runs are marked `is_eval` for that reason.
+
+---
+
 ## What we learned about Higgs Realtime
 
 Honest engineering notes, because they shaped the design and may save the next team a day.
@@ -393,7 +442,7 @@ Stated plainly, because a demo that hides its gaps is not worth trusting.
 - **No email has been delivered yet.** The demo inboxes were not configured at the time of writing, so every dispatch so far shows *Blocked by safe mode*. The send path is unit tested but InsForge Messaging has not been exercised end to end.
 - **Mostly tested with simulated callers** (Higgs TTS voices streamed through the real gateway). Real microphone calls work, but have had far less coverage: echo, accents and messy interruptions need more testing.
 - **Only the scam flow has been run as a complete call.** The other four case types have verified classification and authority search, not a full call through to filing.
-- **The evaluation harness is not built.** The tables exist; the 20 simulated callers and scoring do not. InstaCloud environment branching is therefore unused.
+- **The evaluation harness is not built.** The tables exist; the 20 simulated callers and scoring do not. The InstaCloud staging branch is ready for it, but today it is driven by one simulated caller at a time, by hand.
 - **Call audio is not saved** to Storage yet. Transcripts and reports are.
 - **The avatar is not lip synced.** Its mouth follows the loudness of the live voice over pre-rendered takes.
 - **Form reading depends on the page.** With Parallel Extract the gateway reads what a form says it needs (for example the Texas Attorney General's complaint form). Portals that hide their fields behind logins or multi step apps still fall back to the standard fields from `routing.yaml`, and the board says which one you are looking at.

@@ -4,8 +4,10 @@ digits ("four five one two...") are not caught, only digits in the transcript.""
 import re
 
 CARD = re.compile(r"(?<!\d)(?:\d[ -]?){12,18}\d(?!\d)")
+# A secret word only counts when it is followed by "is", ":" or the like, so that
+# ordinary speech such as "pin down the timing" is left alone.
 SECRET = re.compile(
-    r"((?:password|passcode|pass code|pin|cvv|पासवर्ड|contraseña)\s*(?:is|was|hai|tha|है|था|es|:|=)?\s*)(\S+)",
+    r"((?:password|passcode|pass code|pin|cvv|otp|पासवर्ड|contraseña)\s*(?:is|was|hai|tha|है|था|es|:|=)\s*)(\S+)",
     re.IGNORECASE)
 
 
