@@ -58,9 +58,35 @@ async def read_live_form(authority: dict) -> list[dict]:
 
 
 async def read_page(url: str) -> str:
-    """Parallel Extract when its key is set: it handles JavaScript heavy pages and
-    PDFs and returns the parts of the page that answer our question. Else Tavily."""
+    """Read a complaint form well enough to list its fields.
+
+    Tried in this order, which is what the three actually measured on real form
+    pages. The hard case is a JavaScript form like Phoenix's Formstack, where
+    Firecrawl returned usable markdown in 2.3s against Tavily's 17.3s and
+    Parallel's 22.7s — and the caller is waiting through all of it. Tavily is
+    second because it returns the most raw text when a page defeats rendering;
+    Parallel Extract is last, having returned 355 characters for a form whose
+    fields the other two found."""
     async with httpx.AsyncClient(timeout=40) as http:
+        if os.getenv("FIRECRAWL_API_KEY", "").strip():
+            try:
+                r = await http.post("https://api.firecrawl.dev/v2/scrape",
+                                    headers={"Authorization": f"Bearer {os.environ['FIRECRAWL_API_KEY']}"},
+                                    json={"url": url, "formats": ["markdown"], "onlyMainContent": True})
+                r.raise_for_status()
+                if text := (r.json().get("data") or {}).get("markdown") or "":
+                    return text[:14000]
+            except Exception as e:
+                log.warning("Firecrawl failed for %s, falling back: %s", url, e)
+        try:
+            r = await http.post("https://api.tavily.com/extract",
+                                headers={"Authorization": f"Bearer {os.environ['TAVILY_API_KEY']}"},
+                                json={"urls": [url], "extract_depth": "advanced"})
+            r.raise_for_status()
+            if text := (r.json().get("results") or [{}])[0].get("raw_content", ""):
+                return text[:14000]
+        except Exception as e:
+            log.warning("Tavily extract failed for %s, falling back: %s", url, e)
         if os.getenv("PARALLEL_API_KEY", "").strip():
             try:
                 r = await http.post("https://api.parallel.ai/v1/extract",
@@ -70,12 +96,7 @@ async def read_page(url: str) -> str:
                 r.raise_for_status()
                 results = r.json().get("results") or [{}]
                 text = " ".join(results[0].get("excerpts") or []) or (results[0].get("full_content") or "")
-                if text:
-                    return text[:14000]
+                return text[:14000]
             except Exception as e:
-                log.warning("Parallel extract failed, falling back to Tavily: %s", e)
-        r = await http.post("https://api.tavily.com/extract",
-                            headers={"Authorization": f"Bearer {os.environ['TAVILY_API_KEY']}"},
-                            json={"urls": [url], "extract_depth": "advanced"})
-        r.raise_for_status()
-        return (r.json().get("results") or [{}])[0].get("raw_content", "")[:14000]
+                log.warning("Parallel extract failed for %s: %s", url, e)
+        return ""
