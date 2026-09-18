@@ -1,0 +1,10 @@
+.env
+.env.*
+.git
+.insta
+.insforge
+frontend
+**/.venv
+**/__pycache__
+**/node_modules
+**/.pytest_cache
