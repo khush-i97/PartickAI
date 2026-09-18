@@ -26,7 +26,7 @@ Three pieces. The gateway is the only part that holds secrets.
 browser (Vite/React)  ──ws──►  gateway (FastAPI)  ──ws──►  Boson Higgs (voice)
         │                          │
         │                          ├──► OpenAI / Model Gateway (all text reasoning)
-        │                          ├──► Tavily (live authority search)
+        │                          ├──► Parallel, Tavily fallback (live authority search, form reading)
         │                          └──► InsForge (Postgres, storage, email)
         │                                     │
         └────────────── InsForge Realtime ◄───┘   (board updates, no polling)
@@ -85,7 +85,7 @@ found a long behavioural prompt stopped the model calling tools at all.
 | `flag_inconsistency` | record a contradiction to raise kindly |
 | `classify_case` | pick one case type from `routing.yaml` |
 | `lookup_transactions` | read the mock bank; catches the planted mismatch |
-| `find_authorities` | Tavily search → LLM picks the one official org |
+| `find_authorities` | Parallel search (Tavily fallback) → LLM picks the one official org |
 | `propose_filing` | summarize for the caller to approve |
 | `file_case` | fill each authority's form and send |
 | `send_confirmation` | email the caller their copy |
@@ -101,7 +101,7 @@ found a long behavioural prompt stopped the model calling tools at all.
   what was said before, and `bank.py` diffs the story against bank records *in
   code*, so a skimming voice model cannot miss it. Genuine corrections
   ("sorry, actually…") are not treated as conflicts.
-- **Real authority lookup.** Tavily search per destination in `routing.yaml`,
+- **Real authority lookup.** Parallel search (Tavily if `PARALLEL_API_KEY` is unset) per destination in `routing.yaml`,
   then an LLM picks the one official org under a strict source rule: the URL
   must be the organization's *own* domain. News, blogs, directories and law
   firms are rejected. Falls back to `db/cached_authorities.json`.

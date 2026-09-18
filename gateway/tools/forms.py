@@ -44,12 +44,7 @@ async def prepare_form(session, authority: dict):
 
 
 async def read_live_form(authority: dict) -> list[dict]:
-    async with httpx.AsyncClient(timeout=30) as http:
-        r = await http.post("https://api.tavily.com/extract",
-                            headers={"Authorization": f"Bearer {os.environ['TAVILY_API_KEY']}"},
-                            json={"urls": [authority["form_url"]], "extract_depth": "advanced"})
-        r.raise_for_status()
-    page = (r.json().get("results") or [{}])[0].get("raw_content", "")[:14000]
+    page = await read_page(authority["form_url"])
     if not page:
         return []
     out = await insforge.llm_json(
@@ -60,3 +55,27 @@ async def read_live_form(authority: dict) -> list[dict]:
         'Answer as JSON: {"fields": [{"label": "...", "required": true|false, "maps_to": "key or null"}]}',
         f"Organization: {authority['name']}\nURL: {authority['form_url']}\nPage text:\n{page}")
     return out.get("fields") or []
+
+
+async def read_page(url: str) -> str:
+    """Parallel Extract when its key is set: it handles JavaScript heavy pages and
+    PDFs and returns the parts of the page that answer our question. Else Tavily."""
+    async with httpx.AsyncClient(timeout=40) as http:
+        if os.getenv("PARALLEL_API_KEY", "").strip():
+            try:
+                r = await http.post("https://api.parallel.ai/v1/extract",
+                                    headers={"x-api-key": os.environ["PARALLEL_API_KEY"]},
+                                    json={"urls": [url], "objective": "What information does this report or complaint "
+                                          "form ask the person to provide? List every field and requirement."})
+                r.raise_for_status()
+                results = r.json().get("results") or [{}]
+                text = " ".join(results[0].get("excerpts") or []) or (results[0].get("full_content") or "")
+                if text:
+                    return text[:14000]
+            except Exception as e:
+                log.warning("Parallel extract failed, falling back to Tavily: %s", e)
+        r = await http.post("https://api.tavily.com/extract",
+                            headers={"Authorization": f"Bearer {os.environ['TAVILY_API_KEY']}"},
+                            json={"urls": [url], "extract_depth": "advanced"})
+        r.raise_for_status()
+        return (r.json().get("results") or [{}])[0].get("raw_content", "")[:14000]

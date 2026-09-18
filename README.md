@@ -126,7 +126,7 @@ All run on the gateway. Fast tools return at once; slow tools return "started" a
 | `flag_inconsistency(description)` | fast | Records a conflict for Patrick to raise. |
 | `classify_case()` | fast | Case type and confidence, from the transcript and case file. |
 | `lookup_transactions(account_hint, date_range)` | fast | Mock bank records. Compares them with the caller's account **in code**, so the planted mismatch is caught even if the voice model skims the result. |
-| `find_authorities(case_type, location)` | background | Live search, then contact extraction with a strict official source rule. Cached fallback for the demo scenario only, labeled as cached. |
+| `find_authorities(case_type, location)` | background | Live search with Parallel (Tavily as fallback), then contact extraction with a strict official source rule. Cached fallback for the demo scenario only, labeled as cached. |
 | `propose_filing()` | fast | Summary plus planned offices, for Patrick to read back. |
 | `file_case(approved_destinations)` | background | Refuses unless a proposal was made **and** an explicit yes is found in the settled transcript. Honors removals. |
 | `send_confirmation()` | fast | Emails the caller. Idempotent. |
@@ -164,7 +164,7 @@ flowchart LR
         MG[Model Gateway<br/>text model]
     end
 
-    TAV[Tavily<br/>search + page extract]
+    TAV[Parallel<br/>search + page extract<br/>Tavily as fallback]
 
     MIC -- "wss · binary PCM16" --> RELAY
     RELAY -- "binary PCM16 + JSON UI events" --> PLAY
@@ -290,7 +290,7 @@ InsForge Postgres. The gateway writes with the admin key; the browser only reads
 
 ## Run it locally
 
-Needs Python 3.12, Node 18+, and accounts with Boson, InsForge and Tavily.
+Needs Python 3.12, Node 18+, and accounts with Boson, InsForge, and Parallel or Tavily.
 
 ```bash
 git clone https://github.com/khush-i97/PartickAI && cd PartickAI
@@ -378,11 +378,11 @@ flag_inconsistency  The caller stated the transaction happened on Tuesday,
 
 | Office | Found at |
 |---|---|
-| HDFC Bank, unauthorized transactions | hdfc.bank.in |
-| National Cyber Crime Reporting Portal, helpline 1930 | cybercrime.gov.in |
-| Mumbai Police | mumbaipolice.maharashtra.gov.in |
+| HDFC Bank, report frauds | hdfc.bank.in |
+| National Cyber Crime Reporting Portal, complaint form, helpline 1930 | cybercrime.gov.in |
+| Mumbai Police online complaints | mumbaipolice.gov.in |
 
-Other scenarios tested against live search: Chase Security Center, FTC and Austin Police for a US scam; San Francisco Rent Board for a tenant; the Texas Attorney General's consumer complaint form for a billing dispute; SF 311 for a streetlight; Phoenix Police online reporting and Sky Harbor Lost and Found for a wallet lost at the airport.
+Other scenarios tested against live search: Chase Security Center, the FBI's IC3 complaint form and Austin Police online reporting for a US scam; San Francisco Rent Board for a tenant; the Texas Attorney General's consumer complaint form for a billing dispute; SF 311 for a streetlight; Phoenix Police online reporting and Sky Harbor Lost and Found for a wallet lost at the airport.
 
 ---
 
@@ -396,7 +396,7 @@ Stated plainly, because a demo that hides its gaps is not worth trusting.
 - **The evaluation harness is not built.** The tables exist; the 20 simulated callers and scoring do not. InstaCloud environment branching is therefore unused.
 - **Call audio is not saved** to Storage yet. Transcripts and reports are.
 - **The avatar is not lip synced.** Its mouth follows the loudness of the live voice over pre-rendered takes.
-- **Form reading is shallow.** Many portals hide their fields behind logins or multi step apps, so the Form ready view often falls back to the standard fields from `routing.yaml`, and says so.
+- **Form reading depends on the page.** With Parallel Extract the gateway reads what a form says it needs (for example the Texas Attorney General's complaint form). Portals that hide their fields behind logins or multi step apps still fall back to the standard fields from `routing.yaml`, and the board says which one you are looking at.
 - **Patrick still repeats himself sometimes** ("Got it, I've noted…") and can re-ask a question after a background note.
 - **Authority search varies run to run** and occasionally picks a weak page of the right organization. Contacts are mostly phones and forms; few offices publish an email.
 - **Redaction is best effort.** Digits in the transcript are caught; a card number spoken as words is not.
@@ -410,4 +410,5 @@ Stated plainly, because a demo that hides its gaps is not worth trusting.
 - [Boson AI](https://www.boson.ai): Higgs Realtime, Higgs STT, Higgs TTS, Higgs Avatar. The browser audio worklets and resampler are adapted from Boson's [higgs-realtime-tutorial](https://github.com/boson-ai/higgs-realtime-tutorial) (Apache 2.0). Patrick's face is "James" from Boson's Avatar Studio.
 - [InsForge](https://insforge.dev): Postgres, Realtime, Storage, Messaging, Model Gateway, Sites.
 - [InstaCloud](https://instacloud.com): the always on gateway container.
-- [Tavily](https://tavily.com): live search and page extraction.
+- [Parallel](https://parallel.ai): live search and page extraction, the default when its key is set. It finds the offices' actual report forms and reads their fields.
+- [Tavily](https://tavily.com): the fallback for both.

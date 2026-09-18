@@ -1,4 +1,5 @@
-"""find_authorities: background task. Live web search (Tavily), then the Model
+"""find_authorities: background task. Live web search (Parallel, or Tavily as the
+fallback), then the Model
 Gateway extracts one official contact per destination. Patrick keeps talking while
 it runs; results land on the board through InsForge Realtime."""
 import asyncio
@@ -84,12 +85,8 @@ async def live_lookup(dest: dict) -> dict | None:
 
 
 async def search_once(dest: dict, query: str) -> dict | None:
-    async with httpx.AsyncClient(timeout=20) as http:
-        r = await http.post("https://api.tavily.com/search",
-                            headers={"Authorization": f"Bearer {os.environ['TAVILY_API_KEY']}"},
-                            json={"query": query, "search_depth": "advanced", "max_results": 8})
-        r.raise_for_status()
-    results = [{"title": x["title"], "url": x["url"], "content": x["content"][:1200]} for x in r.json()["results"]]
+    results = await web_search(query, f"Find the official page of: {dest['label']}. I need the organization's own "
+                                      "website or a government site, with its phone, email and any online report form.")
     out = await insforge.llm_json(
         "You pick the one official organization that accepts this kind of report, from web search results. "
         "STRICT SOURCE RULE: source_url must be on the organization's own website (for a company or bank, its own "
@@ -103,6 +100,27 @@ async def search_once(dest: dict, query: str) -> dict | None:
         '"form_url": "online report form URL or null", "phone": "... or null", "source_url": "the result URL used"}',
         f"Needed: {dest['label']}\nSearch query: {query}\nResults: {json.dumps(results)}")
     return out if out.get("found") and out.get("name") and out.get("source_url") else None
+
+
+async def web_search(query: str, objective: str) -> list[dict]:
+    """Parallel Search when its key is set (objective driven, dense excerpts,
+    about four seconds), otherwise Tavily. Same result shape either way."""
+    async with httpx.AsyncClient(timeout=25) as http:
+        if os.getenv("PARALLEL_API_KEY", "").strip():
+            try:
+                r = await http.post("https://api.parallel.ai/v1/search",
+                                    headers={"x-api-key": os.environ["PARALLEL_API_KEY"]},
+                                    json={"objective": objective, "search_queries": [query]})
+                r.raise_for_status()
+                return [{"title": x.get("title") or "", "url": x["url"],
+                         "content": " ".join(x.get("excerpts") or [])[:1500]} for x in r.json()["results"][:8]]
+            except Exception as e:
+                log.warning("Parallel search failed, falling back to Tavily: %s", e)
+        r = await http.post("https://api.tavily.com/search",
+                            headers={"Authorization": f"Bearer {os.environ['TAVILY_API_KEY']}"},
+                            json={"query": query, "search_depth": "advanced", "max_results": 8})
+        r.raise_for_status()
+        return [{"title": x["title"], "url": x["url"], "content": x["content"][:1200]} for x in r.json()["results"]]
 
 
 def cached_lookup(case_type: str, role: str) -> dict | None:
