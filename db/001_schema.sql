@@ -1,4 +1,4 @@
--- Case Closed schema. Apply with: npx @insforge/cli db import db/001_schema.sql
+-- Patrick schema. Apply with: npx @insforge/cli db import db/001_schema.sql
 -- The gateway writes with the admin key. The browser only reads (anon SELECT).
 
 CREATE TABLE IF NOT EXISTS cases (

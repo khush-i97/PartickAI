@@ -73,8 +73,8 @@ export default function App() {
   return (
     <div className="app">
       <header>
-        <h1>Case Closed</h1>
-        <p className="sub">Detective Patrick · voice intake</p>
+        <h1>Patrick</h1>
+        <p className="sub">Voice detective · tell him what happened</p>
       </header>
 
       <main>

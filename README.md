@@ -1,4 +1,4 @@
-# Case Closed
+# Patrick
 
 **Call a detective. Tell him what happened, in any language. He builds the case file while you talk, finds the real offices that handle it, and files the report when you say yes.**
 
@@ -35,7 +35,7 @@ Detective Patrick is a voice agent built on [Higgs Audio](https://www.boson.ai) 
 
 Reporting a problem is harder than having one. After a scam you are meant to tell your bank's fraud desk, a national cybercrime portal and maybe the police. Each has its own form, its own fields and its own language. Most people give up, and most of them are not typing in their first language.
 
-Case Closed turns that into one phone call:
+Patrick turns that into one phone call:
 
 | You | Patrick |
 |---|---|

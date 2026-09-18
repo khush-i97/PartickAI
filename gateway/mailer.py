@@ -79,5 +79,5 @@ async def _post_to_insforge(to: str, subject: str, body_html: str) -> None:
     async with httpx.AsyncClient(timeout=30) as http:
         r = await http.post(os.environ["INSFORGE_URL"].rstrip("/") + "/api/email/send-raw",
                             headers={"Authorization": f"Bearer {os.environ['INSFORGE_API_KEY']}"},
-                            json={"to": [to], "subject": subject, "html": body_html, "from": "Detective Patrick, Case Closed"})
+                            json={"to": [to], "subject": subject, "html": body_html, "from": "Detective Patrick"})
         r.raise_for_status()

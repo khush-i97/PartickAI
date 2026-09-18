@@ -5,7 +5,7 @@ specifics, see [AGENTS.md](AGENTS.md).
 
 ## What we are building
 
-**Case Closed** — a voice intake desk. A person calls **Detective Patrick**, tells
+**Patrick** — a voice intake desk. A person calls **Detective Patrick**, tells
 him what went wrong in their own language, and by the end of the call a real
 complaint has been filed with the real organizations that handle it.
 
@@ -125,7 +125,7 @@ found a long behavioural prompt stopped the model calling tools at all.
 
 Today the app opens straight onto the call board: `App.tsx` renders a header,
 the avatar and call button, and five panels in three columns. There is no
-landing page, no explanation of what Case Closed is, and no marketing surface —
+landing page, no explanation of what Patrick is, and no marketing surface —
 a first-time visitor sees a dark grid of empty panels and one button.
 
 Planned:

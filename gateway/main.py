@@ -1,4 +1,4 @@
-"""Case Closed voice gateway. Run locally: uvicorn main:app --reload --port 8000"""
+"""Patrick voice gateway. Run locally: uvicorn main:app --reload --port 8000"""
 import logging
 import os
 from pathlib import Path
@@ -19,7 +19,7 @@ logging.basicConfig(level=logging.INFO)
 ALLOWED_ORIGINS = [o.strip() for o in os.getenv(
     "ALLOWED_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173").split(",") if o.strip()]
 
-app = FastAPI(title="Case Closed gateway")
+app = FastAPI(title="Patrick gateway")
 app.add_middleware(CORSMiddleware, allow_origins=ALLOWED_ORIGINS, allow_methods=["*"], allow_headers=["*"])
 
 
