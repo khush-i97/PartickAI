@@ -21,6 +21,7 @@ export default function App() {
   // A review opens with everything already found, so the drawer starts open.
   const [drawerOpen, setDrawerOpen] = useState(reviewing);
   const autoOpened = useRef(reviewing);
+  const [demo, setDemo] = useState<"idle" | "running" | "failed">("idle");
   const call = useRef<Call | null>(null);
   const meter = useRef<HTMLDivElement>(null);
   const avatar = useRef<AvatarHandle>(null);
@@ -53,6 +54,21 @@ export default function App() {
         next[i] = { ...next[i], text: ev.final ? ev.text : next[i].text + ev.text, final: ev.final };
         return next;
       });
+    }
+  }
+
+  // Fills a case the way a call would, for showing the app without a mic. The
+  // offices and forms in it are found live, not faked.
+  async function runDemo() {
+    setDemo("running");
+    try {
+      const api = (import.meta.env.VITE_GATEWAY_URL || "").replace(/^ws/, "http");
+      const r = await fetch(`${api}/api/demo`, { method: "POST" });
+      const out = await r.json();
+      if (!out.case_id) throw new Error("no case");
+      location.search = `?case=${out.case_id}`;
+    } catch {
+      setDemo("failed");
     }
   }
 
@@ -126,6 +142,14 @@ export default function App() {
             {status === "ended" && "Call ended."}
           </p>
           {error && <p className="error">{error}</p>}
+          {status === "idle" && !reviewing && (
+            <div className="actions">
+              <button className="btn" onClick={runDemo} disabled={demo === "running"}>
+                {demo === "running" ? "Building a case…" : "Run a demo without calling"}
+              </button>
+            </div>
+          )}
+          {demo === "failed" && <p className="error">The demo could not reach the gateway.</p>}
         </section>
 
         <div className="rail right">

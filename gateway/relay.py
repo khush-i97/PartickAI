@@ -54,6 +54,7 @@ class CallSession:
         self.lookups: set[str] = set()            # account hints already checked
         self.conflicts: set[str] = set()          # inconsistencies already recorded
         self.raised_conflict: str | None = None   # the one Patrick is currently asking about
+        self.resolving_city = False               # a city lookup is already in flight
         self.response_active = False
         self.user_speaking = False
         self.language = None  # pinned once the caller's language is known
@@ -370,15 +371,26 @@ class CallSession:
         whenever a fact or the case type changes, so the bank search can start
         later than the police search if the bank's name arrives later."""
         from tools import authorities
-        # A campus, an airport or a bare city name cannot pick the office that
-        # handles this, so nothing is searched until Patrick has a real one.
-        # Silence would look like the search is simply slow, so he is told to ask.
-        if self.case_type and self.fields.get("location") and not authorities.usable_city(self.fields["location"]):
+        # A campus or an airport cannot pick the office that handles this. Work
+        # the city out from what the caller already said before asking them:
+        # someone who says "ASU" has told you where they are, and being asked
+        # three times for a city they already named is maddening.
+        if self.case_type and not authorities.usable_city(self.fields.get("location")):
+            if self.resolving_city:
+                return
+            self.resolving_city = True
+            city = await authorities.resolve_city(self.fields.get("location"), self.fields.get("place_lost"),
+                                                  self.fields.get("address"), self.fields.get("what_happened"))
+            if city:
+                log.info("call %s: resolved %r to %s", self.case_id, self.fields.get("location"), city)
+                await self.invoke("update_case_file", {"field": "location", "value": city}, source="backup")
+                return  # saving the fact calls this again, now with a usable city
+            self.resolving_city = False
             if "location" not in self.asked_for:
                 self.asked_for.add("location")
-                await self.note(f"\"{self.fields['location']}\" is not a city, so the right office cannot be found "
-                                "yet. Ask which town or city this happened in, and which state or country, then "
-                                "save it with update_case_file as location, for example \"Phoenix, Arizona\".")
+                await self.note("Ask once, in passing, which town or city this happened in, and save it with "
+                                "update_case_file as location like \"Phoenix, Arizona\". Ask only once: if the "
+                                "caller does not give a city, carry on with the rest of the case.")
             return
         for dest in authorities.ready_destinations(self):
             self.searched_roles.add(dest["role"])

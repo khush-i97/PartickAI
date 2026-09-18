@@ -103,6 +103,32 @@ async def search_destination(session, dest: dict):
     return row
 
 
+async def resolve_city(*clues: str | None) -> str | None:
+    """Work out the city from what the caller already said.
+
+    "ASU", "Arizona State University", "Sky Harbor" — a person hearing these
+    knows the city, and asking anyway is the single most irritating thing this
+    agent does. Only a well known place is accepted: the model is told to answer
+    null rather than guess, because a guessed city routes the report to the
+    wrong force, and the caller is asked as a last resort."""
+    text = " · ".join(c for c in clues if c and c.strip())
+    if not text.strip():
+        return None
+    try:
+        out = await insforge.llm_json(
+            "Which city is this place in? The text names a place from a phone call: a university, campus, airport, "
+            "station, landmark or neighbourhood, possibly misheard or abbreviated (ASU, A C University and Arizona "
+            "State University are the same place). Answer with the city and its state or country, like "
+            '"Tempe, Arizona" or "Mumbai, India". If the place is ambiguous, unknown to you, or could be in several '
+            "countries, answer null — a wrong city sends a police report to the wrong force. "
+            'Answer as JSON: {"location": "City, State" or null}',
+            text)
+        return usable_city(out.get("location")) and out["location"].strip()
+    except Exception:
+        log.exception("could not resolve a city from %r", text)
+        return None
+
+
 EMAIL_RE = re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}")
 # An inbox someone reads, rather than a newsletter or a webmaster alias.
 PREFERRED = ("police", "report", "complaint", "fraud", "record", "info", "contact", "help", "service", "support")

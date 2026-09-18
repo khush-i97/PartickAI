@@ -40,6 +40,16 @@ async def packet(case_id: str):
     return {k: v for k, v in packet.items() if k != "documents"}  # bytes are not JSON
 
 
+@app.post("/api/demo")
+async def demo_case():
+    """Fill a case without a microphone, for showing the thing to people.
+
+    The conversation is canned; the offices, their forms and the packet are
+    found live, so the demo exercises the parts that can actually break."""
+    import demo  # noqa: PLC0415
+    return await demo.seed()
+
+
 @app.post("/api/cases/{case_id}/send/{authority_id}")
 async def send(case_id: str, authority_id: str):
     """Send one drafted email with its files attached.
