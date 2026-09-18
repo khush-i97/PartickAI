@@ -335,6 +335,29 @@ class CallSession:
         await self.note("The caller has answered the point you raised. Take their answer, say it back once in a "
                         "few words so it is on record, and move on to what you still need.", speak=False)
 
+    # What a report cannot be written without. Everything else — the brand of
+    # the wallet, who else was there, whether there are photos — is worth asking
+    # only if the caller has more to give.
+    ESSENTIALS = ("caller_name", "what_happened", "when", "location")
+
+    async def maybe_propose(self):
+        """Offer to send as soon as there is a case worth sending.
+
+        Patrick used to wait for the caller to announce they were finished, so
+        after the offices were found he kept interviewing: distinctive features,
+        who was with you, do you have receipts. The caller is sitting there
+        wondering why nothing is happening. Once the essentials are in and an
+        office has been found, say so and ask."""
+        if self.proposed_at_turn is not None or self.emergency or self.filed:
+            return
+        if not self.authorities or any(f not in self.fields for f in self.ESSENTIALS):
+            return
+        result = await self.invoke("propose_filing", {}, source="backup")
+        if result.get("error"):
+            return
+        await self.note("You have what the report needs. Do not ask for more details now. Read this back in two "
+                        f"short sentences and ask whether to send it: {json.dumps(result)}")
+
     async def on_caller_done(self):
         """End detection. If Patrick did not propose on its own, do it for it and
         hand it the summary to read back."""
@@ -362,6 +385,7 @@ class CallSession:
         if self.case_type == "scam_fraud" and last4 and last4 not in self.lookups:
             result = await self.invoke("lookup_transactions", {"account_hint": last4}, source="backup")
             await self.note(f"Bank records for the account ending {last4}: {json.dumps(result)}")
+        await self.maybe_propose()
 
     def english_transcript(self) -> str:
         return "\n".join(f"{t['speaker']}: {t.get('english') or t['text']}" for t in self.turns.values())
@@ -410,6 +434,7 @@ class CallSession:
             await self.note(f"The background search found these offices: {names}. Mention in one short sentence "
                             "that you have found the right offices and will tell the caller before anything is sent, "
                             "then continue your questions.")
+            await self.maybe_propose()
 
     async def set_language(self, language: str, reply_style: str):
         if language != self.language:
