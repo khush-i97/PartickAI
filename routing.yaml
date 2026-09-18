@@ -56,7 +56,7 @@ case_types:
         search: "{city} official 311 service request report {issue}"
         needs: [location, address, what_happened, when]
 
-# Facts Rook can write with update_case_file.
+# Facts Patrick can write with update_case_file.
 fields:
   - caller_name
   - caller_email

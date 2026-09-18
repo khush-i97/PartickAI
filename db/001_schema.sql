@@ -30,7 +30,7 @@ CREATE TABLE IF NOT EXISTS transcript_turns (
   id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   case_id       uuid NOT NULL REFERENCES cases(id) ON DELETE CASCADE,
   item_id       text NOT NULL,               -- Higgs conversation item; caller turns grow, so upsert on it
-  speaker       text NOT NULL,               -- rook | caller
+  speaker       text NOT NULL,               -- patrick | caller
   original_text text NOT NULL,
   english_text  text,
   language      text,
@@ -53,7 +53,7 @@ CREATE TABLE IF NOT EXISTS tool_events (
   args       jsonb,
   result     jsonb,
   status     text NOT NULL DEFAULT 'done',   -- running | done | error
-  source     text NOT NULL DEFAULT 'rook',   -- rook (voice model) | backup (gateway scribe)
+  source     text NOT NULL DEFAULT 'patrick',   -- patrick (voice model) | backup (gateway scribe)
   created_at timestamptz NOT NULL DEFAULT now()
 );
 

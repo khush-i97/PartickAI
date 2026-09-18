@@ -2,7 +2,7 @@
 
 TOOLS is the JSON schema list sent to Higgs Realtime in session.update.
 HANDLERS maps each tool name to an async function(session, **args).
-Guidance about a tool lives in its description, which keeps Rook's prompt short.
+Guidance about a tool lives in its description, which keeps Patrick's prompt short.
 """
 from . import authorities, bank, case_file, filing
 

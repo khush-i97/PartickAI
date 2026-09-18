@@ -1,6 +1,6 @@
 """The only code path that sends email. Everything goes through send_email.
 
-Safe mode is enforced here, in code, not in Rook's prompt:
+Safe mode is enforced here, in code, not in Patrick's prompt:
 - SAFE_MODE missing, empty, or anything other than the word "false" means ON.
 - In safe mode the real recipient is never mailed. Authority reports go to
   DEMO_AUTHORITY_INBOX and caller confirmations to DEMO_CALLER_INBOX.
@@ -79,5 +79,5 @@ async def _post_to_insforge(to: str, subject: str, body_html: str) -> None:
     async with httpx.AsyncClient(timeout=30) as http:
         r = await http.post(os.environ["INSFORGE_URL"].rstrip("/") + "/api/email/send-raw",
                             headers={"Authorization": f"Bearer {os.environ['INSFORGE_API_KEY']}"},
-                            json={"to": [to], "subject": subject, "html": body_html, "from": "Detective Rook, Case Closed"})
+                            json={"to": [to], "subject": subject, "html": body_html, "from": "Detective Patrick, Case Closed"})
         r.raise_for_status()

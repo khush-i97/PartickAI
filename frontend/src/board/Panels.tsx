@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { Board, Row } from "../lib/board";
 
-export type LiveTurn = { id: string; speaker: "rook" | "caller"; text: string };
+export type LiveTurn = { id: string; speaker: "patrick" | "caller"; text: string };
 
 const FIELD_LABELS: Record<string, string> = {
   caller_name: "Caller", caller_email: "Caller email", what_happened: "What happened", when: "When",
@@ -47,7 +47,7 @@ export function Transcript({ live, board }: { live: LiveTurn[]; board: Board }) 
           return (
             <div key={t.id} className={`turn ${t.speaker}`}>
               <span className="who">
-                {t.speaker === "rook" ? "Rook" : "Caller"}
+                {t.speaker === "patrick" ? "Patrick" : "Caller"}
                 {row?.language && <em> · {row.language}</em>}
               </span>
               <p>{t.text}</p>
@@ -71,7 +71,7 @@ export function CaseFile({ board }: { board: Board }) {
           {c.confidence != null && <span> · {Math.round(c.confidence * 100)}% sure</span>}
         </p>
       )}
-      {board.case_fields.length === 0 && <p className="empty">Facts fill in here as Rook hears them.</p>}
+      {board.case_fields.length === 0 && <p className="empty">Facts fill in here as Patrick hears them.</p>}
       <dl className="fields">
         {[...board.case_fields].sort((a, b) => a.updated_at.localeCompare(b.updated_at)).map((f) => (
           // Keyed on the value too, so a corrected fact replays its highlight.
@@ -102,7 +102,7 @@ export function ToolLog({ board }: { board: Board }) {
   return (
     <Panel title="Tool calls" count={events.length} className="log">
       <div className="scroll short">
-        {events.length === 0 && <p className="empty">Rook's actions appear here as they fire.</p>}
+        {events.length === 0 && <p className="empty">Patrick's actions appear here as they fire.</p>}
         {events.map((e) => (
           <div key={e.id} className={`tool-line ${e.status}`}>
             <span className="at">{clock(e.created_at)}</span> <span className="name">{e.name}</span>
@@ -126,7 +126,7 @@ export function AuthorityFinder({ board }: { board: Board }) {
   return (
     <Panel title="Authority finder" count={found.length}>
       {searches.length === 0 && found.length === 0 && (
-        <p className="empty">Once the case type and location are known, Rook searches for the right offices here.</p>
+        <p className="empty">Once the case type and location are known, Patrick searches for the right offices here.</p>
       )}
       {searches.map((s) => (
         <p key={s.id} className={`search ${s.status}`}>

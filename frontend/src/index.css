@@ -58,7 +58,7 @@ main {
 .empty { color: var(--dim); font-size: 14px; margin: 0; }
 
 .turn .who { font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--dim); font-family: ui-monospace, Menlo, monospace; }
-.turn.rook .who { color: var(--accent); }
+.turn.patrick .who { color: var(--accent); }
 .turn p { margin: 2px 0 0; font-size: 17px; line-height: 1.45; }
 
 .tool-line { font-family: ui-monospace, Menlo, monospace; font-size: 12px; line-height: 1.5; word-break: break-word; }

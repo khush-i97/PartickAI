@@ -2,7 +2,7 @@
 
 Browser -> gateway: binary frames are PCM16 24 kHz mic audio; text frames are
 JSON control messages ({"type": "flushed", ...}).
-Gateway -> browser: binary frames are Rook's PCM16 24 kHz audio; text frames
+Gateway -> browser: binary frames are Patrick's PCM16 24 kHz audio; text frames
 are JSON events for the UI (transcripts, tool calls, flush requests).
 
 The Boson key stays here. Tool calls are executed here, never in the browser.
@@ -18,7 +18,7 @@ import websockets
 from fastapi import WebSocket, WebSocketDisconnect
 
 import insforge
-import rook
+import patrick
 from redact import redact
 
 log = logging.getLogger("relay")
@@ -70,7 +70,7 @@ class CallSession:
         async with websockets.connect(BOSON_URL, additional_headers=headers, max_size=None) as boson:
             self.boson = boson
             # Higgs sends nothing until the first session.update.
-            await self.send(rook.session_update(self.tools))
+            await self.send(patrick.session_update(self.tools))
             try:
                 await asyncio.gather(self.from_browser(), self.from_boson())
             except (WebSocketDisconnect, websockets.ConnectionClosed):
@@ -101,7 +101,7 @@ class CallSession:
                 await self.on_browser_event(json.loads(msg["text"]))
 
     async def on_browser_event(self, ev: dict):
-        # The browser answers our "flush" with how much of Rook's reply was
+        # The browser answers our "flush" with how much of Patrick's reply was
         # actually heard. Only the browser knows this, and Higgs needs it so
         # its memory of the conversation matches what the caller heard.
         if ev["type"] == "flushed" and ev.get("dropped") and ev.get("item_id"):
@@ -137,14 +137,14 @@ class CallSession:
                 self.response_active = True
 
             elif t == "response.output_audio_transcript.delta":
-                await self.ui({"type": "transcript", "speaker": "rook", "item_id": ev["item_id"],
+                await self.ui({"type": "transcript", "speaker": "patrick", "item_id": ev["item_id"],
                                "text": ev["delta"], "final": False})
 
             elif t == "response.output_audio_transcript.done":
                 text = redact(ev["transcript"])
-                await self.ui({"type": "transcript", "speaker": "rook", "item_id": ev["item_id"],
+                await self.ui({"type": "transcript", "speaker": "patrick", "item_id": ev["item_id"],
                                "text": text, "final": True})
-                self.on_turn("rook", ev["item_id"], text)
+                self.on_turn("patrick", ev["item_id"], text)
 
             elif t == "conversation.item.input_audio_transcription.completed":
                 text = redact(ev["transcript"])
@@ -158,8 +158,8 @@ class CallSession:
 
             elif t == "session.created":
                 await self.ui({"type": "ready"})
-                # Rook speaks first: greeting and consent.
-                await self.send({"type": "response.create", "response": {"instructions": rook.GREETING}})
+                # Patrick speaks first: greeting and consent.
+                await self.send({"type": "response.create", "response": {"instructions": patrick.GREETING}})
 
             elif t == "error":
                 log.warning("boson error: %s", ev.get("error"))
@@ -218,7 +218,7 @@ class CallSession:
                 await self.on_caller_done()
 
     async def on_caller_done(self):
-        """End detection. If Rook did not propose on its own, do it for it and
+        """End detection. If Patrick did not propose on its own, do it for it and
         hand it the summary to read back."""
         await asyncio.sleep(3)
         if self.proposed_at_turn is None and not self.emergency:
@@ -226,7 +226,7 @@ class CallSession:
             await self.note(f"The caller signalled they are done. Proposal: {json.dumps(result)}")
 
     async def backup(self, facts: dict, corrections: dict):
-        """Higgs does not call tools on every turn. After giving Rook a head
+        """Higgs does not call tools on every turn. After giving Patrick a head
         start, the gateway fills in whatever it missed, through the same tools."""
         await asyncio.sleep(4)
         for field, value in facts.items():
@@ -274,7 +274,7 @@ class CallSession:
         if language != self.language:
             self.language, self.reply_style = language, reply_style
             await insforge.update("cases", {"id": self.case_id}, {"language": language})
-            await self.send({"type": "session.update", "session": {"instructions": rook.instructions(reply_style)}})
+            await self.send({"type": "session.update", "session": {"instructions": patrick.instructions(reply_style)}})
 
     # ---- tools -----------------------------------------------------------
 
@@ -298,7 +298,7 @@ class CallSession:
             args = json.loads(arguments)
         except json.JSONDecodeError:
             args = {}
-        result = await self.invoke(name, args, source="rook")
+        result = await self.invoke(name, args, source="patrick")
         if isinstance(result, dict):
             # Tool results are English, which pulls Higgs back to English. Remind it every time.
             result = {**result, "speak_in": self.reply_style or "the caller's language"}
@@ -306,7 +306,7 @@ class CallSession:
 
     async def invoke(self, name: str, args: dict, source: str):
         """The one path every tool runs through, whether the voice model called
-        it (source 'rook') or the gateway's backup did (source 'backup')."""
+        it (source 'patrick') or the gateway's backup did (source 'backup')."""
         status = "done"
         try:
             result = await self.handlers[name](self, **args)
@@ -319,13 +319,13 @@ class CallSession:
         return result
 
     def spawn(self, coro):
-        """Run a slow tool in the background so Rook keeps talking."""
+        """Run a slow tool in the background so Patrick keeps talking."""
         task = asyncio.create_task(coro)
         self.background.add(task)
         task.add_done_callback(self.background.discard)
 
     async def note(self, text: str):
-        """Tell Rook something a background task found, without cutting anyone off."""
+        """Tell Patrick something a background task found, without cutting anyone off."""
         self.pending_notes.append(text)
         await self.flush_notes()
 

@@ -99,9 +99,9 @@ async def file_case(session, approved_destinations: list[str]):
     approved = []
     for a in proposed:
         name = a["name"].lower()
-        named_by_rook = any(w in name or name in w or w == a["role"] for w in wanted)
+        named_by_patrick = any(w in name or name in w or w == a["role"] for w in wanted)
         removed_by_caller = any(r in name or name in r for r in removed)
-        ok = named_by_rook and not removed_by_caller
+        ok = named_by_patrick and not removed_by_caller
         a["approval"] = "approved" if ok else "removed"
         await insforge.update("authorities", {"id": a["id"]}, {"approval": a["approval"]})
         if ok:
@@ -204,7 +204,7 @@ async def send_confirmation(session):
         f"<li><b>{html.escape(d['intended_name'])}</b>: {html.escape(d['status'])}, reference {d['reference']}"
         f"{', web form ' + html.escape(d['form_url']) if d.get('form_url') else ''}</li>" for d in session.dispatches)
     body = (f"<p>Hello {html.escape(session.fields.get('caller_name', ''))},</p>"
-            f"<p>This confirms what Detective Rook filed for you.</p><p>{html.escape(session.summary)}</p>"
+            f"<p>This confirms what Detective Patrick filed for you.</p><p>{html.escape(session.summary)}</p>"
             f"<ul>{items}</ul><p>What usually happens next: each organization reviews the report and may contact you "
             f"for more detail. This is not legal advice and no outcome is promised.</p>"
             f"<p>Transcript: <a href='{link}'>{link}</a></p>{session.transcript_html}")

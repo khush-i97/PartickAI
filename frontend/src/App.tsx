@@ -3,7 +3,7 @@ import { Call, type GatewayEvent } from "./audio/call";
 import { AuthorityFinder, CaseFile, Dispatches, Inconsistencies, ToolLog, Transcript } from "./board/Panels";
 import { useBoard } from "./lib/board";
 
-type Turn = { id: string; speaker: "rook" | "caller"; text: string; final: boolean };
+type Turn = { id: string; speaker: "patrick" | "caller"; text: string; final: boolean };
 type Status = "idle" | "connecting" | "live" | "ended";
 
 export default function App() {
@@ -25,7 +25,7 @@ export default function App() {
     if (ev.type === "transcript") {
       setTurns((prev) => {
         const i = prev.findIndex((t) => t.id === ev.item_id);
-        // Rook's words stream in as deltas; the final event carries the full text.
+        // Patrick's words stream in as deltas; the final event carries the full text.
         if (i === -1) return [...prev, { id: ev.item_id, speaker: ev.speaker, text: ev.text, final: ev.final }];
         const next = [...prev];
         next[i] = { ...next[i], text: ev.final ? ev.text : next[i].text + ev.text, final: ev.final };
@@ -68,19 +68,19 @@ export default function App() {
     <div className="app">
       <header>
         <h1>Case Closed</h1>
-        <p className="sub">Detective Rook · voice intake</p>
+        <p className="sub">Detective Patrick · voice intake</p>
       </header>
 
       <main>
         <section className="call">
           <button className={`call-btn ${live ? "on" : ""}`} onClick={toggle} disabled={status === "connecting"}>
-            {status === "connecting" ? "Connecting…" : live ? "End call" : "Call Rook"}
+            {status === "connecting" ? "Connecting…" : live ? "End call" : "Call Patrick"}
           </button>
           <div className="meter" ref={meter} aria-hidden />
           <p className="state">
             {status === "idle" && "Tap to start. Speak any language."}
             {status === "connecting" && "Reaching the detective…"}
-            {status === "live" && (speaking ? "Rook is speaking" : "Rook is listening")}
+            {status === "live" && (speaking ? "Patrick is speaking" : "Patrick is listening")}
             {status === "ended" && "Call ended."}
           </p>
           {error && <p className="error">{error}</p>}

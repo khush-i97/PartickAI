@@ -58,8 +58,8 @@ class PlaybackProcessor extends AudioWorkletProcessor {
         // Discard everything queued by moving the read pointer up to the write
         // pointer. Playback stops on the very next render quantum — within a
         // few milliseconds — which is what makes barge-in feel immediate.
-        // `dropped` tells the gateway whether the caller actually cut Rook off
-        // (audio was still queued) or spoke after Rook had finished.
+        // `dropped` tells the gateway whether the caller actually cut Patrick off
+        // (audio was still queued) or spoke after Patrick had finished.
         const dropped = this.available;
         this.available = 0;
         this.read = this.write;

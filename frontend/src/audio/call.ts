@@ -1,4 +1,4 @@
-// One phone call to the gateway: microphone up, Rook's voice down.
+// One phone call to the gateway: microphone up, Patrick's voice down.
 //
 // The audio worklets, resampler and ring-buffer playback are adapted from
 // Boson's higgs-realtime-tutorial (Apache 2.0). The difference is that here the
@@ -15,7 +15,7 @@ export type GatewayEvent =
   | { type: "ready" }
   | { type: "audio_start"; item_id: string }
   | { type: "flush" }
-  | { type: "transcript"; speaker: "rook" | "caller"; item_id: string; text: string; final: boolean }
+  | { type: "transcript"; speaker: "patrick" | "caller"; item_id: string; text: string; final: boolean }
   | { type: "tool"; name: string; args: Record<string, unknown> }
   | { type: "case"; case_id: string }
   | { type: "error"; error: unknown }
@@ -65,7 +65,7 @@ export class Call {
     this.ws = this.micCtx = this.outCtx = this.stream = this.player = null;
   }
 
-  // ---- Rook's voice ------------------------------------------------------
+  // ---- Patrick's voice ------------------------------------------------------
 
   private async startPlayback() {
     // Same rate as the API, so one sample received is one sample played and
@@ -106,7 +106,7 @@ export class Call {
       this.itemId = ev.item_id;
       this.player?.port.postMessage({ type: "reset" });
     } else if (ev.type === "flush") {
-      // The caller started talking over Rook: stop within a few milliseconds.
+      // The caller started talking over Patrick: stop within a few milliseconds.
       this.player?.port.postMessage({ type: "flush" });
     }
     this.cb.onEvent(ev);

@@ -1,5 +1,5 @@
 """find_authorities: background task. Live web search (Tavily), then the Model
-Gateway extracts one official contact per destination. Rook keeps talking while
+Gateway extracts one official contact per destination. Patrick keeps talking while
 it runs; results land on the board through InsForge Realtime."""
 import asyncio
 import json
