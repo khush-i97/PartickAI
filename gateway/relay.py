@@ -73,8 +73,15 @@ class CallSession:
             await self.send(patrick.session_update(self.tools))
             try:
                 await asyncio.gather(self.from_browser(), self.from_boson())
-            except (WebSocketDisconnect, websockets.ConnectionClosed):
-                pass
+            except WebSocketDisconnect as e:
+                log.info("call %s: browser closed the socket (code %s)", self.case_id, e.code)
+            except websockets.ConnectionClosed as e:
+                # 1013 = Boson concurrency limit, 4429 = out of credit, 3000 = bad key.
+                log.warning("call %s: Higgs Realtime closed the socket: %s", self.case_id, e)
+                try:
+                    await self.ui({"type": "ended", "reason": f"The voice service closed the call ({e})"})
+                except Exception:
+                    pass
             finally:
                 for task in self.background:
                     task.cancel()

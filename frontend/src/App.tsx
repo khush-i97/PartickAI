@@ -20,7 +20,10 @@ export default function App() {
 
   function onEvent(ev: GatewayEvent) {
     if (ev.type === "ready") setStatus("live");
-    if (ev.type === "ended") setStatus("ended");
+    if (ev.type === "ended") {
+      setStatus("ended");
+      setError(ev.reason);
+    }
     if (ev.type === "error") setError(JSON.stringify(ev.error));
     if (ev.type === "case") setCaseId(ev.case_id);
     if (ev.type === "transcript") {
