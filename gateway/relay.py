@@ -193,11 +193,15 @@ class CallSession:
         if speaker == "caller":
             ask += (f"Also extract facts the caller stated, using only these keys: {FIELDS}. Short English values. "
                     f"Known so far: {self.fields}. Put a key in facts only if this turn states it for the first time. "
-                    "Put a key in corrections only if the caller explicitly changes a known value. "
+                    "Put a key in corrections only if the caller explicitly takes back a known value "
+                    "('sorry, actually it was...'). If instead this turn simply contradicts something known or said "
+                    "earlier without acknowledging it (for example 'afternoon' earlier and '7 AM' now, or two "
+                    "different amounts), do not treat it as a correction: set conflict to one English sentence "
+                    "naming both values. Otherwise conflict is null. "
                     "Set caller_done true only if the caller clearly signals they have nothing more to add "
                     "(for example 'okay, that is all, thank you', in any language). "
                     'Answer as JSON: {"english": "...", "language": "...", "reply_style": "...", "facts": {}, '
-                    '"corrections": {}, "caller_done": false}')
+                    '"corrections": {}, "conflict": null, "caller_done": false}')
         else:
             ask += 'Answer as JSON: {"english": "...", "language": "..."}'
         try:
@@ -214,8 +218,19 @@ class CallSession:
             if language:
                 await self.set_language(language, out.get("reply_style") or language)
             await self.backup(out.get("facts") or {}, out.get("corrections") or {})
+            if out.get("conflict"):
+                await self.on_conflict(out["conflict"])
             if out.get("caller_done"):
                 await self.on_caller_done()
+
+    async def on_conflict(self, conflict: str):
+        """The caller contradicted themselves. Put it on the board and have
+        Patrick raise it, even if the voice model let it slide."""
+        if conflict in self.conflicts:
+            return
+        await self.invoke("flag_inconsistency", {"description": conflict}, source="backup")
+        await self.note(f"The caller's statements conflict: {conflict} You have not settled this yet. "
+                        "Raise it kindly now and ask which one is right.")
 
     async def on_caller_done(self):
         """End detection. If Patrick did not propose on its own, do it for it and
