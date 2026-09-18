@@ -79,15 +79,82 @@ const REPORT_ORDER = [
   "who_involved", "reference_numbers", "evidence", "desired_outcome",
 ];
 
+/** The form the caller actually has to fill: each question the office asks, and
+ *  the answer Patrick already has for it. This is the deliverable, so it sits in
+ *  the rail with the actions attached, not behind a click. */
+export function FormToFill({ board }: { board: Board }) {
+  const authorities = [...board.authorities]
+    .filter((a) => a.approval !== "removed")
+    .sort((a, b) => (a.rank ?? 99) - (b.rank ?? 99))
+    .filter((a) => board.form_fields.some((f) => f.authority_id === a.id));
+  const answers = new Map(board.case_fields.map((f) => [f.field, f.value]));
+
+  if (authorities.length === 0) {
+    return (
+      <Panel title="The form">
+        <p className="empty">Once an office is found, its form appears here with the caller's answers filled in.</p>
+      </Panel>
+    );
+  }
+
+  return (
+    <Panel title="The form" count={authorities.length}>
+      {authorities.map((a) => {
+        const fields = board.form_fields
+          .filter((f) => f.authority_id === a.id)
+          .sort((x, y) => x.position - y.position);
+        const answered = fields.filter((f) => f.maps_to && answers.has(f.maps_to));
+        const text = [`${a.name} — report`, ...fields.map((f) => {
+          const v = f.maps_to ? answers.get(f.maps_to) : undefined;
+          return `${f.label}: ${v ?? "(still needed)"}`;
+        })].join("\n");
+
+        return (
+          <div key={a.id} className="form-block">
+            <div className="row">
+              <h3>{a.name}</h3>
+              <span className="status">{answered.length}/{fields.length} answered</span>
+            </div>
+            <dl className="qa">
+              {fields.map((f) => {
+                const value = f.maps_to ? answers.get(f.maps_to) : undefined;
+                return (
+                  <div key={f.id} className={value ? "filled" : "needed"}>
+                    <dt>{f.label}{f.required && <span className="req"> *</span>}</dt>
+                    <dd>{value ?? (f.maps_to ? "still needed" : "not collected by Patrick")}</dd>
+                  </div>
+                );
+              })}
+            </dl>
+            <div className="actions">
+              {a.form_url && (
+                <a className="btn primary" href={a.form_url} target="_blank" rel="noreferrer">Open the real form ↗</a>
+              )}
+              {/* Nothing here submits on the caller's behalf: they paste their
+                  own answers into the office's own form. */}
+              <button className="btn" onClick={() => navigator.clipboard?.writeText(text)}>Copy answers</button>
+            </div>
+          </div>
+        );
+      })}
+    </Panel>
+  );
+}
+
 export function Report({ board }: { board: Board }) {
   const c = board.cases[0];
   const byField = new Map(board.case_fields.map((f) => [f.field, f]));
+  // Anything already shown as a form answer is not repeated here.
+  const inForm = new Set(board.form_fields.map((f) => f.maps_to).filter(Boolean));
+  for (const k of inForm) byField.delete(k as string);
   const known = REPORT_ORDER.filter((k) => byField.has(k));
   const extra = [...byField.keys()].filter((k) => !REPORT_ORDER.includes(k));
   const rows = [...known, ...extra].map((k) => byField.get(k)!);
 
+  if (rows.length === 0 && inForm.size > 0) return null;
+
   return (
-    <Panel title="Report" count={rows.length}>
+    <Panel title={inForm.size > 0 ? "Also recorded" : "Report"} count={rows.length}>
       {c?.case_type && (
         <p className="case-type">
           {String(c.case_type).replace(/_/g, " ")}

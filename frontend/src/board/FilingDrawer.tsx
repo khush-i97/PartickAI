@@ -1,34 +1,25 @@
-/** Where the call pays off: the offices Patrick found, how to reach them, the
- *  form filled with the caller's own answers, and what was actually sent.
+/** What was actually sent, and Patrick's working notes.
  *
- *  It lives in a drawer rather than a rail because the brief wants Patrick to
- *  own the screen during the interview. None of this exists until he has
- *  searched, and when it does exist it deserves more width than a column. */
+ *  The offices and their forms live in the right rail, where the caller can act
+ *  on them. This keeps the things they only need after the fact: the dispatched
+ *  reports with the exact email, the analyst's open questions, and the tool log. */
 import { useState } from "react";
 import type { Board, Row } from "../lib/board";
 import { byTime, clock, summarize } from "./Panels";
 
 export type DrawerTab = "filing" | "activity";
 
-/** What the peek tab says when the drawer is shut: the top office and whether
- *  its form is ready, which is the thing worth interrupting someone for. */
+/** What the peek tab says when the drawer is shut. The offices and the form are
+ *  on the rail now, so this reports on sending, which is the only part that
+ *  happens out of sight. */
 export function drawerSummary(board: Board): string | null {
-  const found = sortedAuthorities(board);
-  if (found.length === 0) {
-    const running = board.authority_searches.some((s) => s.status === "running");
-    return running ? "Looking for the right office…" : null;
+  const sent = board.dispatches.filter((d) => d.status === "sent" || d.status === "delivered").length;
+  if (board.dispatches.length > 0) {
+    const label = sent === board.dispatches.length ? "sent" : `${sent} of ${board.dispatches.length} sent`;
+    return `Reports ${label} · see the exact emails`;
   }
-  const top = found[0];
-  const fields = board.form_fields.filter((f) => f.authority_id === top.id);
-  const more = found.length > 1 ? ` + ${found.length - 1} more` : "";
-  if (fields.length === 0) return `${top.name}${more}`;
-  const answers = new Map(board.case_fields.map((f) => [f.field, f.value]));
-  const filled = fields.filter((f) => f.maps_to && answers.has(f.maps_to)).length;
-  return `${top.name}${more} · form ${filled}/${fields.length} filled`;
-}
-
-function sortedAuthorities(board: Board): Row[] {
-  return [...board.authorities].sort((a, b) => (a.rank ?? 99) - (b.rank ?? 99));
+  if (board.authority_searches.some((s) => s.status === "running")) return "Looking for the right office…";
+  return null;
 }
 
 export function FilingDrawer({ board, open, onToggle }: { board: Board; open: boolean; onToggle: () => void }) {
@@ -46,7 +37,7 @@ export function FilingDrawer({ board, open, onToggle }: { board: Board; open: bo
       </button>
       <div className="drawer-body">
         <div className="drawer-tabs">
-          <button className={tab === "filing" ? "on" : ""} onClick={() => setTab("filing")}>Forms</button>
+          <button className={tab === "filing" ? "on" : ""} onClick={() => setTab("filing")}>Dispatch</button>
           <button className={tab === "activity" ? "on" : ""} onClick={() => setTab("activity")}>Activity</button>
         </div>
         {tab === "filing" ? <Filing board={board} /> : <Activity board={board} />}
@@ -56,76 +47,10 @@ export function FilingDrawer({ board, open, onToggle }: { board: Board; open: bo
 }
 
 function Filing({ board }: { board: Board }) {
-  const found = sortedAuthorities(board);
   const dispatches = [...board.dispatches].sort(byTime);
-
-  return (
-    <>
-      {found.length === 0 && (
-        <p className="empty">Each office's form appears here, filled with the caller's answers, as Patrick finds them.</p>
-      )}
-
-      {found.length > 0 && (
-        <div className="offices">
-          {found.map((a, i) => <Office key={a.id} authority={a} rank={i + 1} board={board} />)}
-        </div>
-      )}
-
-      <h4>Dispatch</h4>
-      {dispatches.length === 0
-        ? <p className="empty">Nothing is sent until the caller says yes.</p>
-        : <Dispatches rows={dispatches} />}
-    </>
-  );
-}
-
-/** Contacts live in the rail now, so this is only the paperwork: which office,
- *  and its form with the caller's answers already in it. */
-function Office({ authority, rank, board }: { authority: Row; rank: number; board: Board }) {
-  return (
-    <div className={`office ${authority.approval}`}>
-      <span className="rank">
-        {rank === 1 ? "First stop" : `Also #${rank}`}
-        {authority.is_cached && <span className="badge" style={{ marginLeft: 6 }}>cached</span>}
-        {authority.approval !== "pending" && <span className={`badge ${authority.approval}`} style={{ marginLeft: 6 }}>{authority.approval}</span>}
-      </span>
-      <h3>{authority.name}</h3>
-      {authority.reason && <p className="reason">{authority.reason}</p>}
-      <FormReady authority={authority} board={board} />
-    </div>
-  );
-}
-
-/** The real form's fields with the caller's answers. Values come live from the
- *  case file, so a field flips from "still needed" to filled as the caller answers. */
-function FormReady({ authority, board }: { authority: Row; board: Board }) {
-  const fields = board.form_fields.filter((f) => f.authority_id === authority.id).sort((a, b) => a.position - b.position);
-  if (fields.length === 0) return null;
-  const answers = new Map(board.case_fields.map((f) => [f.field, f.value]));
-  const filled = fields.filter((f) => f.maps_to && answers.has(f.maps_to)).length;
-  return (
-    <details className="form-ready">
-      <summary>
-        Form ready · {filled}/{fields.length} filled
-        <span className="badge" style={{ marginLeft: 6 }}>{fields[0].source === "form" ? "read from the live form" : "standard fields"}</span>
-      </summary>
-      <dl>
-        {fields.map((f) => {
-          const value = f.maps_to ? answers.get(f.maps_to) : undefined;
-          return (
-            <div key={f.id} className={value ? "filled" : "needed"}>
-              <dt>{f.label}{f.required && " *"}</dt>
-              <dd>{value ?? (f.maps_to ? "still needed" : "not collected by Patrick")}</dd>
-            </div>
-          );
-        })}
-      </dl>
-      <p className="contact">
-        Prepared only, never submitted.
-        {authority.form_url && <a href={authority.form_url} target="_blank" rel="noreferrer">Open the real form ↗</a>}
-      </p>
-    </details>
-  );
+  return dispatches.length === 0
+    ? <p className="empty">Nothing is sent until the caller says yes. What was sent, and the exact email, appears here.</p>
+    : <Dispatches rows={dispatches} />;
 }
 
 const STATUS_LABEL: Record<string, string> = {

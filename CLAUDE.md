@@ -65,7 +65,8 @@ gateway/           FastAPI voice gateway — the whole backend
   tools/           the nine tools Patrick can call
 frontend/src/
   App.tsx          call button, status, panel layout
-  board/Panels.tsx the six live panels
+  board/Panels.tsx transcript, where to file, the form, the report
+  board/FilingDrawer.tsx  dispatch and the tool log, in a bottom drawer
   board/Avatar.tsx video avatar, reacts to voice level and mood
   audio/           mic capture, resampling, AudioWorklets
   lib/board.ts     initial read + realtime subscription
@@ -128,21 +129,31 @@ the avatar and call button, and five panels in three columns. There is no
 landing page, no explanation of what Patrick is, and no marketing surface —
 a first-time visitor sees a dark grid of empty panels and one button.
 
-Planned:
+Done so far — the **call screen**: Patrick centre stage, transcript left, and a
+right rail that reads as the deliverable rather than the interview — where to
+file (with phone, email and form URL), then each office's form as question and
+answer with *Open the real form* and *Copy answers*, then anything else
+recorded. Dispatch and the tool log moved into a bottom drawer.
+
+Still to do:
 - A **landing page** that explains the product before asking anyone to talk.
 - A **homepage / entry flow** separate from the live call board.
-- A **visual redesign** across the app.
+- The **visual pass** beyond the call screen.
 
 Notes for whoever takes this:
-- All styling is one file, `frontend/src/index.css`, and the markup is plain
-  semantic elements with class names — no CSS framework, no component library.
+- Styling is `frontend/src/styles/base.css` (tokens and shared atoms) plus
+  `styles/call.css` (the call screen). A landing page should get its own file
+  next to them. Plain semantic markup with class names — no CSS framework, no
+  component library.
 - There is **no router** yet. Adding distinct landing/home/call views means
   introducing routing (or conditional rendering) in `App.tsx`. The only existing
   URL-based state is `?case=<id>`; keep that working.
 - `Avatar.tsx` plays video from `frontend/public/avatar/` and reacts to voice
   level and mood — it is the main visual character, worth designing around.
-- The panels in `Panels.tsx` are the product's "proof" surface. They look empty
-  before a call; a redesign should consider that first-run state.
+- The rail panels are the product's "proof" surface. They look empty before a
+  call; a redesign should consider that first-run state.
+- Nothing in the UI submits a complaint on anyone's behalf. *Copy answers* and
+  a link to the office's own form is deliberate, not a stub.
 
 ### Good parallel work (not the redesign)
 

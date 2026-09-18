@@ -77,16 +77,19 @@ async def search_destination(session, dest: dict):
 
 
 async def live_lookup(dest: dict) -> dict | None:
-    # Second try with a plainer query if the first finds nothing official.
-    for query in (dest["query"], f"{dest['label']} official website contact {dest['query'].split()[0]}"):
-        if contact := await search_once(dest, query):
-            return contact
-    return None
+    """Both phrasings go out together. Parallel takes a list of queries in one
+    request, so asking twice costs one round trip instead of two, and the model
+    picks from the pooled results rather than settling for whatever the first
+    phrasing happened to return."""
+    queries = [dest["query"], f"{dest['label']} official website contact {dest['query'].split()[0]}"]
+    return await search_once(dest, queries)
 
 
-async def search_once(dest: dict, query: str) -> dict | None:
-    results = await web_search(query, f"Find the official page of: {dest['label']}. I need the organization's own "
-                                      "website or a government site, with its phone, email and any online report form.")
+async def search_once(dest: dict, queries: list[str]) -> dict | None:
+    results = await web_search(queries, f"Find the official page of: {dest['label']}. I need the organization's own "
+                                        "website or a government site, with its phone, email and any online report form.")
+    if not results:
+        return None
     out = await insforge.llm_json(
         "You pick the one official organization that accepts this kind of report, from web search results. "
         "STRICT SOURCE RULE: source_url must be on the organization's own website (for a company or bank, its own "
@@ -98,29 +101,50 @@ async def search_once(dest: dict, query: str) -> dict | None:
         'Answer as JSON: {"found": true|false, "name": "...", "handles": "what they handle, short", '
         '"reason": "one sentence on why this is the right office", "email": "... or null", '
         '"form_url": "online report form URL or null", "phone": "... or null", "source_url": "the result URL used"}',
-        f"Needed: {dest['label']}\nSearch query: {query}\nResults: {json.dumps(results)}")
+        f"Needed: {dest['label']}\nSearch queries: {'; '.join(queries)}\nResults: {json.dumps(results)}")
     return out if out.get("found") and out.get("name") and out.get("source_url") else None
 
 
-async def web_search(query: str, objective: str) -> list[dict]:
-    """Parallel Search when its key is set (objective driven, dense excerpts,
-    about four seconds), otherwise Tavily. Same result shape either way."""
+async def web_search(queries: list[str], objective: str) -> list[dict]:
+    """Every phrasing of the question, searched at once. Parallel takes the whole
+    list in one objective-driven request; Tavily takes one query per request, so
+    those go out concurrently instead of one after another. Either way the
+    results come back pooled and deduplicated by URL."""
     async with httpx.AsyncClient(timeout=25) as http:
         if os.getenv("PARALLEL_API_KEY", "").strip():
             try:
                 r = await http.post("https://api.parallel.ai/v1/search",
                                     headers={"x-api-key": os.environ["PARALLEL_API_KEY"]},
-                                    json={"objective": objective, "search_queries": [query]})
+                                    json={"objective": objective, "search_queries": queries})
                 r.raise_for_status()
-                return [{"title": x.get("title") or "", "url": x["url"],
-                         "content": " ".join(x.get("excerpts") or [])[:1500]} for x in r.json()["results"][:8]]
+                return _dedupe({"title": x.get("title") or "", "url": x["url"],
+                                "content": " ".join(x.get("excerpts") or [])[:1500]} for x in r.json()["results"])
             except Exception as e:
                 log.warning("Parallel search failed, falling back to Tavily: %s", e)
-        r = await http.post("https://api.tavily.com/search",
-                            headers={"Authorization": f"Bearer {os.environ['TAVILY_API_KEY']}"},
-                            json={"query": query, "search_depth": "advanced", "max_results": 8})
-        r.raise_for_status()
-        return [{"title": x["title"], "url": x["url"], "content": x["content"][:1200]} for x in r.json()["results"]]
+
+        async def tavily(query: str) -> list[dict]:
+            r = await http.post("https://api.tavily.com/search",
+                                headers={"Authorization": f"Bearer {os.environ['TAVILY_API_KEY']}"},
+                                json={"query": query, "search_depth": "advanced", "max_results": 8})
+            r.raise_for_status()
+            return [{"title": x["title"], "url": x["url"], "content": x["content"][:1200]} for x in r.json()["results"]]
+
+        # One bad phrasing should not lose the results the other one found.
+        batches = await asyncio.gather(*(tavily(q) for q in queries), return_exceptions=True)
+        for b in batches:
+            if isinstance(b, Exception):
+                log.warning("Tavily search failed for one query: %s", b)
+        return _dedupe(r for b in batches if not isinstance(b, Exception) for r in b)
+
+
+def _dedupe(results) -> list[dict]:
+    """Same page found by two phrasings is one result, keeping the longer excerpt."""
+    best: dict[str, dict] = {}
+    for r in results:
+        seen = best.get(r["url"])
+        if not seen or len(r["content"]) > len(seen["content"]):
+            best[r["url"]] = r
+    return list(best.values())[:10]
 
 
 def cached_lookup(case_type: str, role: str) -> dict | None:

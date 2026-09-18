@@ -139,6 +139,29 @@
 .office-brief .details div { grid-template-columns: 62px minmax(0, 1fr); }
 .office-brief .details dd { font-size: 12px; }
 
+/* The form the caller has to fill: their question, our answer, then the way to
+   act on it. Missing answers are meant to stand out — they are the reason a
+   filing stalls. */
+.form-block { border-top: 1px solid var(--line); padding: 12px 0 0; }
+.form-block:first-of-type { border-top: 0; padding-top: 0; }
+.form-block h3 { margin: 0; font-size: 15px; line-height: 1.3; }
+.qa { margin: 10px 0 0; display: grid; gap: 9px; }
+.qa dt { font-size: 13px; color: var(--dim); line-height: 1.35; }
+.qa dt .req { color: var(--accent); }
+.qa dd { margin: 2px 0 0; font-size: 14px; line-height: 1.4; }
+.qa .needed dd { color: var(--danger); font-style: italic; }
+
+.actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.btn {
+  display: inline-block; padding: 7px 14px; border-radius: 6px;
+  border: 1px solid var(--line); background: none; color: var(--text);
+  font: 12px ui-monospace, Menlo, monospace; letter-spacing: 0.04em;
+  cursor: pointer; text-decoration: none;
+}
+.btn:hover { border-color: var(--accent); color: var(--accent); }
+.btn.primary { border-color: var(--accent); color: var(--accent); }
+.btn.primary:hover { background: color-mix(in srgb, var(--accent) 14%, transparent); }
+
 .searches { margin: 0 0 12px; display: flex; flex-direction: column; gap: 4px; }
 .search { margin: 0; font: 12px ui-monospace, Menlo, monospace; color: var(--dim); }
 .search .dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--dim); margin-right: 6px; }

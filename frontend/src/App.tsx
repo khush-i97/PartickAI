@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Call, type GatewayEvent } from "./audio/call";
-import { Report, Transcript, WhereToFile } from "./board/Panels";
+import { FormToFill, Report, Transcript, WhereToFile } from "./board/Panels";
 import { FilingDrawer, drawerSummary } from "./board/FilingDrawer";
 import { Avatar, type AvatarHandle } from "./board/Avatar";
 import { useBoard } from "./lib/board";
@@ -24,15 +24,16 @@ export default function App() {
   const meter = useRef<HTMLDivElement>(null);
   const avatar = useRef<AvatarHandle>(null);
 
-  // Open the drawer once, the first time Patrick finds somewhere to file. After
-  // that it is the caller's to open and close: it must not fight them.
-  const foundSomewhere = board.authorities.length > 0;
+  // Open the drawer once, the first time something is actually sent. After that
+  // it is the caller's to open and close: it must not fight them. (Offices and
+  // the form are on the rail, so there is nothing to announce before this.)
+  const hasSent = board.dispatches.length > 0;
   useEffect(() => {
-    if (foundSomewhere && !autoOpened.current) {
+    if (hasSent && !autoOpened.current) {
       autoOpened.current = true;
       setDrawerOpen(true);
     }
-  }, [foundSomewhere]);
+  }, [hasSent]);
 
   function onEvent(ev: GatewayEvent) {
     if (ev.type === "ready") setStatus("live");
@@ -127,8 +128,9 @@ export default function App() {
         </section>
 
         <div className="rail right">
-          <Report board={board} />
           <WhereToFile board={board} />
+          <FormToFill board={board} />
+          <Report board={board} />
         </div>
       </div>
 
