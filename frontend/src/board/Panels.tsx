@@ -69,26 +69,77 @@ export function Transcript({ live, board }: { live: LiveTurn[]; board: Board }) 
   );
 }
 
-export function CaseFile({ board }: { board: Board }) {
+/* The report reads top to bottom the way a complaint does: who is calling,
+   what happened, then the specifics. Anything Patrick heard that is not in this
+   order still appears, at the end, rather than being dropped. */
+const REPORT_ORDER = [
+  "caller_name", "phone", "caller_email", "date_of_birth",
+  "what_happened", "when", "location", "address", "place_lost",
+  "item_description", "amount", "bank_name", "account_last4", "company_name", "property_manager",
+  "who_involved", "reference_numbers", "evidence", "desired_outcome",
+];
+
+export function Report({ board }: { board: Board }) {
   const c = board.cases[0];
+  const byField = new Map(board.case_fields.map((f) => [f.field, f]));
+  const known = REPORT_ORDER.filter((k) => byField.has(k));
+  const extra = [...byField.keys()].filter((k) => !REPORT_ORDER.includes(k));
+  const rows = [...known, ...extra].map((k) => byField.get(k)!);
+
   return (
-    <Panel title="Case file" count={board.case_fields.length}>
+    <Panel title="Report" count={rows.length}>
       {c?.case_type && (
         <p className="case-type">
           {String(c.case_type).replace(/_/g, " ")}
           {c.confidence != null && <span> · {Math.round(c.confidence * 100)}% sure</span>}
         </p>
       )}
-      {board.case_fields.length === 0 && <p className="empty">Facts fill in here as Patrick hears them.</p>}
+      {rows.length === 0 && <p className="empty">The report writes itself as Patrick hears the details.</p>}
       <dl className="fields">
-        {[...board.case_fields].sort((a, b) => a.updated_at.localeCompare(b.updated_at)).map((f) => (
+        {rows.map((f) => (
           // Keyed on the value too, so a corrected fact replays its highlight.
           <div key={f.id + f.value} className="field fresh">
-            <dt>{FIELD_LABELS[f.field] ?? f.field}</dt>
+            <dt>{FIELD_LABELS[f.field] ?? f.field.replace(/_/g, " ")}</dt>
             <dd>{f.value}</dd>
           </div>
         ))}
       </dl>
+    </Panel>
+  );
+}
+
+/** Where this actually goes, with the numbers and addresses to use. The whole
+ *  point of the call, so it sits in the rail rather than behind a click. */
+export function WhereToFile({ board }: { board: Board }) {
+  const found = [...board.authorities]
+    .filter((a) => a.approval !== "removed")
+    .sort((a, b) => (a.rank ?? 99) - (b.rank ?? 99));
+  const searching = board.authority_searches.some((s) => s.status === "running");
+
+  return (
+    <Panel title="Where to file" count={found.length}>
+      {found.length === 0 && (
+        <p className="empty">
+          {searching ? "Looking for the offices that handle this…"
+                     : "Once Patrick knows the case type and the caller's city, the right offices appear here."}
+        </p>
+      )}
+      {found.map((a) => (
+        <div key={a.id} className="office-brief">
+          <h3>{a.name}</h3>
+          {a.handles && <p className="handles">{a.handles}</p>}
+          <dl className="details">
+            {a.phone && <div><dt>Phone</dt><dd>{a.phone}</dd></div>}
+            {a.email && <div><dt>Email</dt><dd>{a.email}</dd></div>}
+            {a.form_url && (
+              <div><dt>File at</dt><dd><a href={a.form_url} target="_blank" rel="noreferrer">{a.form_url} ↗</a></dd></div>
+            )}
+            {a.source_url && (
+              <div><dt>Source</dt><dd><a href={a.source_url} target="_blank" rel="noreferrer">{a.source_url} ↗</a></dd></div>
+            )}
+          </dl>
+        </div>
+      ))}
     </Panel>
   );
 }

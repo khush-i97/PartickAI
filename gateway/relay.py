@@ -13,6 +13,7 @@ import json
 import logging
 import os
 import time
+from datetime import datetime, timezone
 
 import websockets
 from fastapi import WebSocket, WebSocketDisconnect
@@ -52,6 +53,7 @@ class CallSession:
         self.found: list[str] = []
         self.lookups: set[str] = set()            # account hints already checked
         self.conflicts: set[str] = set()          # inconsistencies already recorded
+        self.raised_conflict: str | None = None   # the one Patrick is currently asking about
         self.response_active = False
         self.user_speaking = False
         self.language = None  # pinned once the caller's language is known
@@ -197,6 +199,9 @@ class CallSession:
         """Model Gateway pass over one turn, off the voice path: English
         translation, language tag, and (caller turns) the facts stated."""
         from tools.case_file import GLOSSARY
+        # The model has no clock of its own, so "an hour ago" is unreadable to it
+        # and reads as a different answer from any stated time.
+        now = datetime.now(timezone.utc).strftime("%A %d %B %Y, %H:%M UTC")
         ask = ("You prepare call transcripts. STRICT: work only from the words in the text. Never add, guess or "
                "complete anything the text does not literally say; if it is empty, unclear or a fragment, return "
                "it as it is with no facts. Translate the text to plain English and name its language "
@@ -211,14 +216,28 @@ class CallSession:
                     "earlier without acknowledging it (for example 'afternoon' earlier and '7 AM' now, or two "
                     "different amounts), do not treat it as a correction: set conflict to one English sentence "
                     "naming both values. Otherwise conflict is null. "
+                    f"It is now {now}. Resolve relative times ('an hour ago', 'today', 'last Tuesday') against that "
+                    "clock, in the caller's own timezone when they gave a location, and write the absolute time as "
+                    "the value. TWO DESCRIPTIONS OF THE SAME MOMENT ARE NOT A CONFLICT: 'an hour ago' and a clock "
+                    "time one hour before now are the same answer, and so are 'this afternoon' and '3:30 PM'. Only "
+                    "set conflict when the two cannot both be true. "
+                    "A caller agreeing with a time or value the agent proposed ('yes', 'yeah, whatever', 'sure') is "
+                    "a confirmation of that value, not a new or conflicting one. "
                     "Think like an investigator reading the whole call so far: if this turn leaves a gap, is vague "
                     "where a detail matters, or sounds implausible, set cross_question to the one short question "
                     "worth asking next (English); otherwise null. "
                     f"Call so far: {self.english_transcript()[-1500:]} "
                     "Set caller_done true only if the caller clearly signals they have nothing more to add "
-                    "(for example 'okay, that is all, thank you', in any language). "
-                    'Answer as JSON: {"english": "...", "language": "...", "reply_style": "...", "facts": {}, '
-                    '"corrections": {}, "conflict": null, "cross_question": null, "caller_done": false}')
+                    "(for example 'okay, that is all, thank you', in any language). ")
+            if self.raised_conflict:
+                # Otherwise the open conflict never closes and Patrick keeps asking.
+                ask += (f"The agent already asked the caller about this: \"{self.raised_conflict}\". Set settled true "
+                        "if this turn answers it in any way — picking one version, confirming the agent's "
+                        "suggestion, or saying it does not matter. Only leave it false if the caller ignored the "
+                        "question entirely. ")
+            ask += ('Answer as JSON: {"english": "...", "language": "...", "reply_style": "...", "facts": {}, '
+                    '"corrections": {}, "conflict": null, "cross_question": null, "settled": false, '
+                    '"caller_done": false}')
         else:
             ask += 'Answer as JSON: {"english": "...", "language": "..."}'
         try:
@@ -238,9 +257,11 @@ class CallSession:
             if language:
                 await self.set_language(language, out.get("reply_style") or language)
             await self.backup(out.get("facts") or {}, out.get("corrections") or {})
+            if self.raised_conflict and out.get("settled"):
+                await self.on_conflict_settled()
             if out.get("conflict"):
                 await self.on_conflict(out["conflict"])
-            elif out.get("cross_question") and out["cross_question"] not in self.conflicts:
+            elif out.get("cross_question") and not self.already_asked(out["cross_question"]):
                 # Live analysis: shown on the board and handed to Patrick quietly,
                 # so his next question can probe it without talking over anyone.
                 self.conflicts.add(out["cross_question"])
@@ -252,9 +273,16 @@ class CallSession:
 
     async def on_conflict(self, conflict: str):
         """The caller contradicted themselves. Put it on the board and have
-        Patrick raise it, even if the voice model let it slide."""
-        if conflict in self.conflicts:
+        Patrick raise it, even if the voice model let it slide.
+
+        Raised at most once. There is a long wait below while Patrick finishes
+        speaking, and the scribe keeps running through it, so this records the
+        conflict before awaiting anything: otherwise later turns re-enter and
+        Patrick asks the same question over and over."""
+        if conflict in self.conflicts or self.raised_conflict:
             return
+        self.conflicts.add(conflict)
+        self.raised_conflict = conflict
         await self.invoke("flag_inconsistency", {"description": conflict}, source="backup")
         # Patrick often catches it himself. Let his reply finish, and only prompt
         # him if he did not already ask, so he never asks the same thing twice.
@@ -271,6 +299,40 @@ class CallSession:
         if not asked.get("asked"):
             await self.note(f"The caller's statements conflict: {conflict} You have not settled this yet. "
                             "Raise it kindly now and ask which one is right.")
+
+    # Words that carry no signal when deciding whether two questions are the same.
+    _FILLER = {"the", "a", "an", "in", "is", "was", "did", "do", "you", "your", "what", "which",
+               "where", "when", "who", "how", "this", "that", "it", "of", "to", "and", "for", "at"}
+
+    def already_asked(self, question: str) -> bool:
+        """The analyst rephrases the same gap every turn until it is answered
+        ('Which city in Arizona did you lose it in?' then 'Which city in Arizona
+        was this?'). Exact-string matching lets all of them through, so compare
+        on content words instead."""
+        def key(q: str) -> frozenset:
+            words = "".join(c if c.isalnum() or c.isspace() else " " for c in q.lower()).split()
+            return frozenset(w for w in words if w not in self._FILLER)
+
+        asked = key(question)
+        if not asked:
+            return True
+        for seen in self.conflicts:
+            other = key(seen)
+            if not other:
+                continue
+            overlap = len(asked & other) / min(len(asked), len(other))
+            if overlap >= 0.6:
+                return True
+        return False
+
+    async def on_conflict_settled(self):
+        """The caller answered the question. Close it on the board and tell
+        Patrick to take the answer and move on: asking a third time reads as
+        not listening, and the caller has already told him twice."""
+        self.raised_conflict = None
+        await insforge.update("inconsistencies", {"case_id": self.case_id, "status": "open"}, {"status": "resolved"})
+        await self.note("The caller has answered the point you raised. Take their answer, say it back once in a "
+                        "few words so it is on record, and move on to what you still need.", speak=False)
 
     async def on_caller_done(self):
         """End detection. If Patrick did not propose on its own, do it for it and

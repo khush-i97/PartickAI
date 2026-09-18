@@ -129,6 +129,16 @@
 .details dt { font: 10px ui-monospace, Menlo, monospace; letter-spacing: 0.1em; text-transform: uppercase; color: var(--dim); }
 .details dd { margin: 0; font: 13px ui-monospace, Menlo, monospace; word-break: break-word; }
 
+/* Where to file, in the rail: one office per block, contacts readable at a
+   glance because they are what the caller has to act on. */
+.office-brief { border-top: 1px solid var(--line); padding: 12px 0 2px; }
+.office-brief:first-of-type { border-top: 0; padding-top: 0; }
+.office-brief h3 { margin: 0; font-size: 16px; line-height: 1.3; }
+.office-brief .handles { margin: 4px 0 0; font-size: 13px; color: var(--dim); line-height: 1.4; }
+.office-brief .details { margin-top: 8px; }
+.office-brief .details div { grid-template-columns: 62px minmax(0, 1fr); }
+.office-brief .details dd { font-size: 12px; }
+
 .searches { margin: 0 0 12px; display: flex; flex-direction: column; gap: 4px; }
 .search { margin: 0; font: 12px ui-monospace, Menlo, monospace; color: var(--dim); }
 .search .dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--dim); margin-right: 6px; }

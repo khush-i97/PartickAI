@@ -46,7 +46,7 @@ export function FilingDrawer({ board, open, onToggle }: { board: Board; open: bo
       </button>
       <div className="drawer-body">
         <div className="drawer-tabs">
-          <button className={tab === "filing" ? "on" : ""} onClick={() => setTab("filing")}>Filing</button>
+          <button className={tab === "filing" ? "on" : ""} onClick={() => setTab("filing")}>Forms</button>
           <button className={tab === "activity" ? "on" : ""} onClick={() => setTab("activity")}>Activity</button>
         </div>
         {tab === "filing" ? <Filing board={board} /> : <Activity board={board} />}
@@ -56,25 +56,13 @@ export function FilingDrawer({ board, open, onToggle }: { board: Board; open: bo
 }
 
 function Filing({ board }: { board: Board }) {
-  const searches = [...board.authority_searches].sort(byTime);
   const found = sortedAuthorities(board);
   const dispatches = [...board.dispatches].sort(byTime);
 
   return (
     <>
-      {searches.length > 0 && (
-        <div className="searches">
-          {searches.map((s) => (
-            <p key={s.id} className={`search ${s.status}`}>
-              <span className="dot" /> {s.query}
-              {s.status === "failed" && <em> · failed</em>}
-            </p>
-          ))}
-        </div>
-      )}
-
       {found.length === 0 && (
-        <p className="empty">Once the case type and the caller's city are known, Patrick searches for the right offices.</p>
+        <p className="empty">Each office's form appears here, filled with the caller's answers, as Patrick finds them.</p>
       )}
 
       {found.length > 0 && (
@@ -91,6 +79,8 @@ function Filing({ board }: { board: Board }) {
   );
 }
 
+/** Contacts live in the rail now, so this is only the paperwork: which office,
+ *  and its form with the caller's answers already in it. */
 function Office({ authority, rank, board }: { authority: Row; rank: number; board: Board }) {
   return (
     <div className={`office ${authority.approval}`}>
@@ -100,22 +90,7 @@ function Office({ authority, rank, board }: { authority: Row; rank: number; boar
         {authority.approval !== "pending" && <span className={`badge ${authority.approval}`} style={{ marginLeft: 6 }}>{authority.approval}</span>}
       </span>
       <h3>{authority.name}</h3>
-      {authority.handles && <p className="handles">{authority.handles}</p>}
       {authority.reason && <p className="reason">{authority.reason}</p>}
-
-      {/* The authorities table has no street address — these are the contact
-          details Patrick actually found, laid out rather than crammed. */}
-      <dl className="details">
-        {authority.phone && <div><dt>Phone</dt><dd>{authority.phone}</dd></div>}
-        {authority.email && <div><dt>Email</dt><dd>{authority.email}</dd></div>}
-        {authority.form_url && (
-          <div><dt>Form</dt><dd><a href={authority.form_url} target="_blank" rel="noreferrer">{authority.form_url} ↗</a></dd></div>
-        )}
-        {authority.source_url && (
-          <div><dt>Source</dt><dd><a href={authority.source_url} target="_blank" rel="noreferrer">{authority.source_url} ↗</a></dd></div>
-        )}
-      </dl>
-
       <FormReady authority={authority} board={board} />
     </div>
   );
@@ -189,12 +164,32 @@ function Dispatches({ rows }: { rows: Row[] }) {
   );
 }
 
-/** Diagnostic, not something the caller needs — hence a drawer tab, not a rail. */
+/** Diagnostic, not something the caller needs — hence a drawer tab, not a rail.
+ *  The analyst's open questions live here too: they are Patrick's working notes,
+ *  and on the rail they read as the report contradicting itself. */
 function Activity({ board }: { board: Board }) {
   const events = [...board.tool_events].sort(byTime).reverse();
-  if (events.length === 0) return <p className="empty">Patrick's actions appear here as they fire.</p>;
+  const conflicts = board.inconsistencies.filter((i) => i.kind !== "question" && i.status === "open");
+  const questions = board.inconsistencies.filter((i) => i.kind === "question");
   return (
-    <div className="scroll">
+    <>
+      {(conflicts.length > 0 || questions.length > 0) && (
+        <>
+          <h4>Live analysis</h4>
+          {conflicts.map((i) => (
+            <p key={i.id} className="conflict open">
+              <span className="tag">Conflict</span> {i.description}
+            </p>
+          ))}
+          {questions.map((i) => (
+            <p key={i.id} className="conflict question">
+              <span className="tag">Worth probing</span> {i.description}
+            </p>
+          ))}
+        </>
+      )}
+      <h4>Tool calls</h4>
+      {events.length === 0 && <p className="empty">Patrick's actions appear here as they fire.</p>}
       {events.map((e) => (
         <div key={e.id} className={`tool-line ${e.status}`}>
           <span className="at">{clock(e.created_at)}</span> <span className="name">{e.name}</span>
@@ -202,6 +197,6 @@ function Activity({ board }: { board: Board }) {
           <span className="args">{summarize(e.args)}</span>
         </div>
       ))}
-    </div>
+    </>
   );
 }
