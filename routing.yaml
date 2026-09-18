@@ -1,0 +1,75 @@
+# Case types and where each one is routed.
+# This file only says WHAT KIND of organization handles a case and what the
+# report must contain. The actual organizations and contact details are found
+# by live web search during the call (gateway/tools/authorities.py).
+
+case_types:
+  scam_fraud:
+    label: Scam or fraud
+    signals: someone pretended to be a bank or company, one time codes shared, money moved without consent
+    destinations:
+      - role: bank_fraud
+        label: The caller's bank fraud department
+        search: "{bank_name} report fraud unauthorized transaction official contact {country}"
+        needs: [caller_name, bank_name, account_last4, amount, when, reference_numbers, what_happened]
+      - role: national_fraud_agency
+        label: National consumer fraud or cybercrime reporting agency
+        search: "official government agency to report online financial fraud {country}"
+        needs: [caller_name, what_happened, when, amount, who_involved]
+      - role: local_police
+        label: Local police general contact
+        search: "{city} police official contact report fraud non emergency"
+        needs: [caller_name, location, what_happened, when, amount]
+
+  tenant_repair:
+    label: Tenant repair issue
+    signals: landlord or property manager not fixing something in a rented home
+    destinations:
+      - role: property_manager
+        label: Property manager or landlord
+        search: "{property_manager} property management contact {city}"
+        needs: [caller_name, address, what_happened, when, evidence, desired_outcome]
+      - role: housing_board
+        label: City housing or rent board office
+        search: "{city} official housing department rent board tenant complaint repairs"
+        needs: [caller_name, address, property_manager, what_happened, when, evidence]
+
+  billing_dispute:
+    label: Billing dispute
+    signals: wrong charge, refund refused, subscription that will not cancel
+    destinations:
+      - role: company_support
+        label: The company's support contact
+        search: "{company_name} official customer support billing complaint contact"
+        needs: [caller_name, company_name, amount, when, reference_numbers, desired_outcome]
+      - role: consumer_protection
+        label: Consumer protection agency
+        search: "official consumer protection agency file complaint {state_or_country}"
+        needs: [caller_name, company_name, what_happened, amount, when, desired_outcome]
+
+  city_issue:
+    label: City issue
+    signals: streetlight, pothole, noise, trash, anything the city maintains
+    destinations:
+      - role: city_311
+        label: City 311 or municipal service desk
+        search: "{city} official 311 service request report {issue}"
+        needs: [location, address, what_happened, when]
+
+# Facts Rook can write with update_case_file.
+fields:
+  - caller_name
+  - caller_email
+  - what_happened
+  - when
+  - who_involved
+  - amount
+  - reference_numbers
+  - evidence
+  - desired_outcome
+  - location          # city and state or country
+  - address
+  - bank_name
+  - account_last4
+  - company_name
+  - property_manager
